@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Define a joint distribution and calculate a contour &#8212; viroconcom  documentation</title>
+    <link rel="stylesheet" href="_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
+    <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+    <script src="_static/sidebar.js"></script>
+    
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Fit a model structure to measured data" href="fitting.html" />
+    <link rel="prev" title="Overall work flow and software architecture" href="workflow.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="_static/mini_logo.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+
+  </head><body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+        <li><a href="index.html">viroconcom  documentation</a> &#187;</li>
+          <li><a href="user_guide.html" accesskey="U">User Guide</a> &#187;</li> 
+      </ul>
+    </div>
+    
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="define-a-joint-distribution-and-calculate-a-contour">
+<h1>Define a joint distribution and calculate a contour<a class="headerlink" href="#define-a-joint-distribution-and-calculate-a-contour" title="Permalink to this headline">¶</a></h1>
+<p>This chapter will explain how joint distributions and contours are handled in
+viroconcom. The process of estimating the parameter values of a joint distribution,
+the “fitting” is explained in the next <a class="reference external" href="https://virocon-organization.github.io/viroconcom/fitting.html">chapter</a>.</p>
+<p>To create an environmental contour, first, we need to define a joint distribution.
+Then, we can choose a specific contour method and initiate the calculation.
+viroconcom uses so-called global hierarchical models to define the joint
+distribution and offers four common methods how an environmental
+contour can be defined based on a given joint distribution.</p>
+<p>If the joint distribution is known, the procedure of calculating an environmental
+contour with viroconcom can be summarized as:</p>
+<ol class="arabic simple">
+<li><p>Create a first, independent univariate distribution.</p></li>
+<li><p>Create another, usually dependent univariate distribution and define its dependency on the previous distributions.</p></li>
+<li><p>Repeat step 2, until you have created a univariate distribution for each environmental variable.</p></li>
+<li><p>Create a joint distribution by bundling the created univariate distributions.</p></li>
+<li><p>Define the contour’s return period and environmental state duration.</p></li>
+<li><p>Choose a type of contour: <a class="reference internal" href="api/contours.html#viroconcom.contours.IFormContour" title="viroconcom.contours.IFormContour"><code class="xref py py-class docutils literal notranslate"><span class="pre">IFormContour</span></code></a>, <a class="reference internal" href="api/contours.html#viroconcom.contours.ISormContour" title="viroconcom.contours.ISormContour"><code class="xref py py-class docutils literal notranslate"><span class="pre">ISormContour</span></code></a>, <a class="reference internal" href="api/contours.html#viroconcom.contours.DirectSamplingContour" title="viroconcom.contours.DirectSamplingContour"><code class="xref py py-class docutils literal notranslate"><span class="pre">DirectSamplingContour</span></code></a> or <a class="reference internal" href="api/contours.html#viroconcom.contours.HighestDensityContour" title="viroconcom.contours.HighestDensityContour"><code class="xref py py-class docutils literal notranslate"><span class="pre">HighestDensityContour</span></code></a>.</p></li>
+<li><p>Initiate the calculation.</p></li>
+</ol>
+<p>These steps are explained in more detail in the following.</p>
+<p>The file <a class="reference external" href="https://github.com/virocon-organization/viroconcom/blob/master/examples/calculate_contours_similar_to_docs.py">calculate_contours_similar_to_docs</a> contains all the code that we will
+show on this page. We will use the sea state model that was proposed by
+Vanem and Bitner-Gregersen (2012; DOI: 10.1016/j.apor.2012.05.006) and compute
+environmental contours with return periods of 25 years.</p>
+<div class="section" id="create-independent-distribution">
+<span id="create-independent-dist"></span><h2>Create independent distribution<a class="headerlink" href="#create-independent-distribution" title="Permalink to this headline">¶</a></h2>
+<p>Distributions are represented by the abstract class
+<a class="reference internal" href="api/distributions.html#viroconcom.distributions.Distribution" title="viroconcom.distributions.Distribution"><code class="xref py py-class docutils literal notranslate"><span class="pre">Distribution</span></code></a>. This class is further
+subclassed by the abstract class
+<a class="reference internal" href="api/distributions.html#viroconcom.distributions.ParametricDistribution" title="viroconcom.distributions.ParametricDistribution"><code class="xref py py-class docutils literal notranslate"><span class="pre">ParametricDistribution</span></code></a>. Distributions of
+this kind are described by three or four parameters:
+<code class="docutils literal notranslate"><span class="pre">shape</span></code>, <code class="docutils literal notranslate"><span class="pre">loc</span></code>, <code class="docutils literal notranslate"><span class="pre">scale</span></code> and possibly <code class="docutils literal notranslate"><span class="pre">shape2</span></code>.
+Though not all distributions need to make use of all parameters.</p>
+<p>Currently there are five parametric distribution subclasses one can use to
+instantiate a distribution:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="api/distributions.html#viroconcom.distributions.WeibullDistribution" title="viroconcom.distributions.WeibullDistribution"><code class="xref py py-class docutils literal notranslate"><span class="pre">WeibullDistribution</span></code></a></p></li>
+<li><p><a class="reference internal" href="api/distributions.html#viroconcom.distributions.ExponentiatedWeibullDistribution" title="viroconcom.distributions.ExponentiatedWeibullDistribution"><code class="xref py py-class docutils literal notranslate"><span class="pre">ExponentiatedWeibullDistribution</span></code></a></p></li>
+<li><p><a class="reference internal" href="api/distributions.html#viroconcom.distributions.LognormalDistribution" title="viroconcom.distributions.LognormalDistribution"><code class="xref py py-class docutils literal notranslate"><span class="pre">LognormalDistribution</span></code></a></p></li>
+<li><p><a class="reference internal" href="api/distributions.html#viroconcom.distributions.NormalDistribution" title="viroconcom.distributions.NormalDistribution"><code class="xref py py-class docutils literal notranslate"><span class="pre">NormalDistribution</span></code></a></p></li>
+<li><p><code class="xref py py-class docutils literal notranslate"><span class="pre">InverseGaussianDistribution</span></code></p></li>
+</ul>
+<p>This table shows, which variables of the probability density function are
+defined by specifying the scale, shape and location parameters:</p>
+<div class="figure align-center" id="id1">
+<img alt="Distributions implemented in viroconcom and their parameters." src="_images/distributions_with_parameters.png" />
+<p class="caption"><span class="caption-text">Distributions implemented in viroconcom and their parameters.</span><a class="headerlink" href="#id1" title="Permalink to this image">¶</a></p>
+</div>
+<p>For the parameters there is the abstract class
+<a class="reference internal" href="api/params.html#viroconcom.params.Param" title="viroconcom.params.Param"><code class="xref py py-class docutils literal notranslate"><span class="pre">Param</span></code></a>. As we want to create an independet
+distribution, we use the subclass <a class="reference internal" href="api/params.html#viroconcom.params.ConstantParam" title="viroconcom.params.ConstantParam"><code class="xref py py-class docutils literal notranslate"><span class="pre">ConstantParam</span></code></a> to
+define <code class="docutils literal notranslate"><span class="pre">shape</span></code>, <code class="docutils literal notranslate"><span class="pre">loc</span></code>, and <code class="docutils literal notranslate"><span class="pre">scale</span></code>.</p>
+<p>Say we want to create a Weibull distribution with <code class="docutils literal notranslate"><span class="pre">shape=1.471</span></code>, <code class="docutils literal notranslate"><span class="pre">loc=0.8888</span></code>,
+and <code class="docutils literal notranslate"><span class="pre">scale=2.776</span></code> (as in the model proposed by Vanem and Bitner-Gregersen).</p>
+<p>We first create a WeibullDistribution object:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">dist0</span> <span class="o">=</span> <span class="n">WeibullDistribution</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="mf">1.471</span><span class="p">,</span> <span class="n">loc</span><span class="o">=</span><span class="mf">0.8888</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">2.776</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>We also need to create a dependency tuple for creating a
+<code class="xref py py-class docutils literal notranslate"><span class="pre">MultivariateDistribution</span></code> later on.
+This is a 3-element tuple with either <code class="docutils literal notranslate"><span class="pre">int</span></code> or <code class="docutils literal notranslate"><span class="pre">None</span></code> as entries.
+The first entry corresponds to <code class="docutils literal notranslate"><span class="pre">shape</span></code>, the second to <code class="docutils literal notranslate"><span class="pre">loc</span></code> and the third
+to <code class="docutils literal notranslate"><span class="pre">scale</span></code>.
+For an independent distribution all entries need to be set to <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">dep0</span> <span class="o">=</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="create-dependent-distribution">
+<span id="create-dependent-dist"></span><h2>Create dependent distribution<a class="headerlink" href="#create-dependent-distribution" title="Permalink to this headline">¶</a></h2>
+<p>In a global hierarchical model, the dependency of a parametric distribution is
+described with dependence functions for the distribution’s parameters.
+In Chapter <a class="reference internal" href="#create-independent-dist"><span class="std std-ref">Create independent distribution</span></a> we used
+<a class="reference internal" href="api/params.html#viroconcom.params.ConstantParam" title="viroconcom.params.ConstantParam"><code class="xref py py-class docutils literal notranslate"><span class="pre">ConstantParam</span></code></a> for the parameters. There is also
+<a class="reference internal" href="api/params.html#viroconcom.params.FunctionParam" title="viroconcom.params.FunctionParam"><code class="xref py py-class docutils literal notranslate"><span class="pre">FunctionParam</span></code></a>, which can represent different
+dependence functions. It is callable and returns a parameter value depending
+on the value called with.</p>
+<p>The following dependence functions, <span class="math notranslate nohighlight">\(f(x)\)</span>, are available under the given labels:</p>
+<ul class="simple">
+<li><p><strong>power3</strong> :  <span class="math notranslate nohighlight">\(f(x) = a + b * x^c\)</span></p></li>
+<li><p><strong>exp3</strong> : <span class="math notranslate nohighlight">\(f(x) = a + b * e^{c * x}\)</span></p></li>
+<li><p><strong>lnsquare2</strong> : <span class="math notranslate nohighlight">\(f(x) = \ln[a + b * \sqrt(x / 9.81)]\)</span></p></li>
+<li><p><strong>powerdecrease3</strong> : <span class="math notranslate nohighlight">\(f(x) = a + 1 / (x + b)^c\)</span></p></li>
+<li><p><strong>asymdecrease3</strong> : <span class="math notranslate nohighlight">\(f(x) = a + b / (1 + c * x)\)</span></p></li>
+<li><p><strong>logistics4</strong> : <span class="math notranslate nohighlight">\(f(x) = a + b / [1 + e^{-1 * |c| * (x - d)}]\)</span></p></li>
+<li><p><strong>alpha3</strong> : <span class="math notranslate nohighlight">\(f(x) = (a + b * x^c) / 2.0445^{1 / logistics4(x, c_1, c_2, c_3, c_4)}\)</span></p></li>
+</ul>
+<p>Say we have a random variable <span class="math notranslate nohighlight">\(X\)</span> that is described by the distribution
+created in <a class="reference internal" href="#create-independent-dist"><span class="std std-ref">Create independent distribution</span></a>. Now we want to create a
+distribution that describes the random variable <span class="math notranslate nohighlight">\(Y\)</span>, which is dependent
+on <span class="math notranslate nohighlight">\(X\)</span> (in common notation <span class="math notranslate nohighlight">\(Y|X\)</span>).</p>
+<p>For this, we first need to define an order of the distributions, so that we
+can determine on which distributions another may depend. We define this order,
+as the order in which the univariate distribution are later on passed to
+the <a class="reference internal" href="api/distributions.html#viroconcom.distributions.MultivariateDistribution" title="viroconcom.distributions.MultivariateDistribution"><code class="xref py py-class docutils literal notranslate"><span class="pre">MultivariateDistribution</span></code></a> constructor.
+For now we use the order of creation. The first distribution (that was described in
+Chapter <a class="reference internal" href="#create-independent-dist"><span class="std std-ref">Create independent distribution</span></a>) has the index <code class="docutils literal notranslate"><span class="pre">0</span></code>. Thus, using our
+previously introduced random variables, <span class="math notranslate nohighlight">\(X_0=X\)</span> and <span class="math notranslate nohighlight">\(X_1=Y\)</span>.
+In viroconcom, we need to use this order in the dependency tuples.</p>
+<p>As already described in Chapter <a class="reference internal" href="#create-independent-dist"><span class="std std-ref">Create independent distribution</span></a> the 3 entries in the
+tuple correspond to the <code class="docutils literal notranslate"><span class="pre">shape</span></code>, <code class="docutils literal notranslate"><span class="pre">loc</span></code>,  and <code class="docutils literal notranslate"><span class="pre">scale</span></code> parameters and the
+entries are either <code class="docutils literal notranslate"><span class="pre">int</span></code> or <code class="docutils literal notranslate"><span class="pre">None</span></code>. If an entry is <code class="docutils literal notranslate"><span class="pre">None</span></code>, the
+corresponding parameter is independent. If an entry is an <code class="docutils literal notranslate"><span class="pre">int</span></code> the parameter
+depends on the distribution with that index, in the order defined above.</p>
+<p>For example, a dependency tuple of <code class="code docutils literal notranslate"><span class="pre">(0,</span> <span class="pre">None,</span> <span class="pre">1)</span></code> means, that <code class="docutils literal notranslate"><span class="pre">shape</span></code>
+depends on the first distribution, <code class="docutils literal notranslate"><span class="pre">loc</span></code> is independent and <code class="docutils literal notranslate"><span class="pre">scale</span></code>
+depends on the second distribution.</p>
+<p>We now want to create a dependent lognormal distribution that will represent
+the second variable, <span class="math notranslate nohighlight">\(X_1|X_0\)</span>. Opposed to, for
+example, a Weibull or normal distribution, a lognormal distribution is often
+not described by <code class="docutils literal notranslate"><span class="pre">shape</span></code>, <code class="docutils literal notranslate"><span class="pre">loc</span></code>,  and <code class="docutils literal notranslate"><span class="pre">scale</span></code>, but by the
+mean <code class="docutils literal notranslate"><span class="pre">mu</span></code> and standard deviation <code class="docutils literal notranslate"><span class="pre">sigma</span></code> of the corresponding normal
+distribution. In this example, we want <code class="docutils literal notranslate"><span class="pre">mu</span></code> and <code class="docutils literal notranslate"><span class="pre">sigma</span></code> to depend on the
+prior created Weibull distribution. The <code class="docutils literal notranslate"><span class="pre">loc</span></code> parameter is ignored by
+the <code class="xref py py-class docutils literal notranslate"><span class="pre">LognormalDistribution</span></code>.</p>
+<p>The conversion between <code class="docutils literal notranslate"><span class="pre">shape</span></code>, <code class="docutils literal notranslate"><span class="pre">scale</span></code>, <code class="docutils literal notranslate"><span class="pre">mu</span></code> and <code class="docutils literal notranslate"><span class="pre">sigma</span></code> is:</p>
+<div class="math notranslate nohighlight">
+\[shape = \sigma\]</div>
+<div class="math notranslate nohighlight">
+\[scale = e^{\mu}\]</div>
+<p>The class <code class="xref py py-class docutils literal notranslate"><span class="pre">LognormalDistribution</span></code> has a
+constructor for <code class="docutils literal notranslate"><span class="pre">`shape</span></code> and <code class="docutils literal notranslate"><span class="pre">scale</span></code> as well as for <code class="docutils literal notranslate"><span class="pre">mu</span></code> and <code class="docutils literal notranslate"><span class="pre">sigma</span></code>.</p>
+<p>Say we want to define the following dependence structure for <span class="math notranslate nohighlight">\(X_1|X_0\)</span>,
+where <span class="math notranslate nohighlight">\(x_0\)</span> is a realization of <span class="math notranslate nohighlight">\(X_0\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\sigma(x_0) = 0.04 + 0.1748 * e^{-0.2243 * x_0}\]</div>
+<div class="math notranslate nohighlight">
+\[\mu(x_0) = 0.1 + 1.489^{x_0 * 0.1901}\]</div>
+<p>In viroconcom, to define this dependence structure, first we create the
+parameters as <a class="reference internal" href="api/params.html#viroconcom.params.FunctionParam" title="viroconcom.params.FunctionParam"><code class="xref py py-class docutils literal notranslate"><span class="pre">FunctionParam</span></code></a> using the keywords
+“exp3” and “power” to specify the wanted dependence functions</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">my_sigma</span> <span class="o">=</span> <span class="n">FunctionParam</span><span class="p">(</span><span class="s1">&#39;exp3&#39;</span><span class="p">,</span> <span class="mf">0.04</span><span class="p">,</span> <span class="mf">0.1748</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.2243</span><span class="p">)</span>
+<span class="n">my_mu</span> <span class="o">=</span> <span class="n">FunctionParam</span><span class="p">(</span><span class="s1">&#39;power3&#39;</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">1.489</span><span class="p">,</span> <span class="mf">0.1901</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Then we create the <code class="xref py py-class docutils literal notranslate"><span class="pre">LognormalDistribution</span></code>
+using the <code class="docutils literal notranslate"><span class="pre">mu</span></code> <code class="docutils literal notranslate"><span class="pre">sigma</span></code> constructor:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">dist1</span> <span class="o">=</span> <span class="n">LognormalDistribution</span><span class="p">(</span><span class="n">sigma</span><span class="o">=</span><span class="n">my_sigma</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="n">my_mu</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>And eventually define the dependency tuple:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">dep1</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Alternativly we could have defined the distribution as follows,
+using the wrapper argument of the <a class="reference internal" href="api/params.html#viroconcom.params.FunctionParam" title="viroconcom.params.FunctionParam"><code class="xref py py-class docutils literal notranslate"><span class="pre">FunctionParam</span></code></a>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">shape</span> <span class="o">=</span> <span class="n">FunctionParam</span><span class="p">(</span><span class="mf">0.04</span><span class="p">,</span> <span class="mf">0.1748</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.2243</span><span class="p">,</span> <span class="s2">&quot;exp3&quot;</span><span class="p">)</span>
+<span class="n">scale</span> <span class="o">=</span> <span class="n">FunctionParam</span><span class="p">(</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">1.1489</span><span class="p">,</span> <span class="mf">0.1901</span><span class="p">,</span> <span class="s2">&quot;power3&quot;</span><span class="p">,</span> <span class="n">wrapper</span><span class="o">=</span><span class="n">numpy</span><span class="o">.</span><span class="n">exp</span><span class="p">)</span>
+<span class="n">dist1</span> <span class="o">=</span> <span class="n">LognormalDistribution</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">scale</span><span class="p">)</span>
+<span class="n">dep1</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="bundle-distributions-and-dependencies-in-a-multivariate-distribution">
+<span id="bundle-multvar-dist"></span><h2>Bundle distributions and dependencies in a multivariate distribution<a class="headerlink" href="#bundle-distributions-and-dependencies-in-a-multivariate-distribution" title="Permalink to this headline">¶</a></h2>
+<p>To create a contour, we need a joint distribution. In viroconcom joint
+distributions can be represented by the
+<a class="reference internal" href="api/distributions.html#viroconcom.distributions.MultivariateDistribution" title="viroconcom.distributions.MultivariateDistribution"><code class="xref py py-class docutils literal notranslate"><span class="pre">MultivariateDistribution</span></code></a> class.</p>
+<p>To create a <a class="reference internal" href="api/distributions.html#viroconcom.distributions.MultivariateDistribution" title="viroconcom.distributions.MultivariateDistribution"><code class="xref py py-class docutils literal notranslate"><span class="pre">MultivariateDistribution</span></code></a> we
+first have to bundle the distributions and dependencies in lists:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">distributions</span> <span class="o">=</span> <span class="p">[</span><span class="n">dist0</span><span class="p">,</span> <span class="n">dist1</span><span class="p">]</span>
+<span class="n">dependencies</span> <span class="o">=</span> <span class="p">[</span><span class="n">dep0</span><span class="p">,</span> <span class="n">dep1</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>The <a class="reference internal" href="api/distributions.html#viroconcom.distributions.MultivariateDistribution" title="viroconcom.distributions.MultivariateDistribution"><code class="xref py py-class docutils literal notranslate"><span class="pre">MultivariateDistribution</span></code></a> can now
+simply be created by passing these lists to the constructor:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">mul_dist</span> <span class="o">=</span> <span class="n">MultivariateDistribution</span><span class="p">(</span><span class="n">distributions</span><span class="p">,</span> <span class="n">dependencies</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="constructing-the-contour">
+<h2>Constructing the contour<a class="headerlink" href="#constructing-the-contour" title="Permalink to this headline">¶</a></h2>
+<p>Next, we need to define the contour’s exceedance probability, <span class="math notranslate nohighlight">\(\alpha\)</span>,
+which is calculated using the return period, <span class="math notranslate nohighlight">\(t_R\)</span>, and the model’s state
+duration, <span class="math notranslate nohighlight">\(t_S\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\alpha = t_S / t_R\]</div>
+<p>In viroconcom the return period is assumed to be given in years and the state
+duration is assumed to be given in hours.</p>
+<p>Then we can select one of the four contour methods:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#iform"><span class="std std-ref">Inverse first-order reliabilty method (IFORM)</span></a></p></li>
+<li><p>Inverse second-order reliablity method (ISORM)</p></li>
+<li><p>Direct sampling contour method</p></li>
+<li><p><a class="reference internal" href="#hdc"><span class="std std-ref">Highest density contour method</span></a></p></li>
+</ul>
+<div class="section" id="inverse-first-order-reliability-method-iform">
+<span id="iform"></span><h3>Inverse first-order reliability method (IFORM)<a class="headerlink" href="#inverse-first-order-reliability-method-iform" title="Permalink to this headline">¶</a></h3>
+<p>With all contours, we need to specify the return period and the state duration.
+In addition, to create an IFORM contour we need to specify the number of points
+along the contour that shall be calculated.</p>
+<p>Let us calculate 90 points along the contour such that we have a resolution of 2
+degrees. With the <a class="reference internal" href="#bundle-multvar-dist"><span class="std std-ref">previously created</span></a> <code class="docutils literal notranslate"><span class="pre">mul_dist</span></code>,
+we can compute a contour with a <code class="docutils literal notranslate"><span class="pre">return_period</span></code> of <code class="docutils literal notranslate"><span class="pre">25</span></code> years and a
+<code class="docutils literal notranslate"><span class="pre">state_duration</span></code> of <code class="docutils literal notranslate"><span class="pre">6</span></code> hours  like this:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">iform_contour</span> <span class="o">=</span> <span class="n">IFormContour</span><span class="p">(</span><span class="n">mul_dist</span><span class="p">,</span> <span class="mi">25</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">90</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="highest-density-contour-method">
+<span id="hdc"></span><h3>Highest density contour method<a class="headerlink" href="#highest-density-contour-method" title="Permalink to this headline">¶</a></h3>
+<p>To create a highest density contour, for the used numerical integration,
+we need to specify a grid in the variable space in addition to return period
+and state duration.
+This is done by passing the grid’s <code class="docutils literal notranslate"><span class="pre">limits</span></code> and <code class="docutils literal notranslate"><span class="pre">deltas</span></code> to the constructor.
+<code class="docutils literal notranslate"><span class="pre">limits</span></code> has to be a list of tuples containing the min and max limits for the
+variable space, one tuple for each dimension.
+<code class="docutils literal notranslate"><span class="pre">deltas</span></code> specifies the grid cell size.
+It is either a list of length equal to the number of dimension, containing
+the step size per dimensions or a scalar. If it is a scalar it is used
+for all dimensions.</p>
+<p>The grid includes the min and max values: <code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">=</span> <span class="pre">[min,</span> <span class="pre">min</span> <span class="pre">+</span> <span class="pre">delta,</span> <span class="pre">...,</span> <span class="pre">max</span> <span class="pre">-</span> <span class="pre">delta,</span> <span class="pre">max]</span></code></p>
+<p>To create a highest density contour for the
+<a class="reference internal" href="#bundle-multvar-dist"><span class="std std-ref">previously created</span></a> <code class="docutils literal notranslate"><span class="pre">mul_dist</span></code> with a
+<code class="docutils literal notranslate"><span class="pre">return_period</span></code> of <code class="docutils literal notranslate"><span class="pre">25</span></code> years and a <code class="docutils literal notranslate"><span class="pre">state_duration</span></code> of <code class="docutils literal notranslate"><span class="pre">6</span></code>,  we first
+define the variable space to be between 0 and 20 and set the step size to 0.5
+in the first and 0.1 in the second dimension.:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">limits</span> <span class="o">=</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">20</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">20</span><span class="p">)]</span>
+<span class="n">deltas</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>The contour can then be created as follows:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">hdens_contour</span> <span class="o">=</span> <span class="n">HighestDensityContour</span><span class="p">(</span><span class="n">mul_dist</span><span class="p">,</span> <span class="mi">25</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="n">limits</span><span class="p">,</span> <span class="n">deltas</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="plotting-the-contour">
+<h3>Plotting the contour<a class="headerlink" href="#plotting-the-contour" title="Permalink to this headline">¶</a></h3>
+<p>To plot the contour we need to access the <code class="docutils literal notranslate"><span class="pre">coordinates</span></code> attribute of the contour.</p>
+<p>Using for example <code class="docutils literal notranslate"><span class="pre">matplotlib</span></code> the following code…</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+
+<span class="n">plt</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">iform_contour</span><span class="o">.</span><span class="n">coordinates</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">iform_contour</span><span class="o">.</span><span class="n">coordinates</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+            <span class="n">label</span><span class="o">=</span><span class="s1">&#39;IFORM contour&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">hdens_contour</span><span class="o">.</span><span class="n">coordinates</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">hdens_contour</span><span class="o">.</span><span class="n">coordinates</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+            <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Highest density contour&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Zero-up-crossing period, Tz (s)&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;Significant wave height, Hs (m)&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>creates this plot:</p>
+<div class="figure align-default" id="id2">
+<a class="reference internal image-reference" href="_images/example_contours_iform_and_hdc.png"><img alt="example contours plot" src="_images/example_contours_iform_and_hdc.png" style="width: 640.0px; height: 480.0px;" /></a>
+<p class="caption"><span class="caption-text">Plot of the calculated IFORM and highest density contours.</span><a class="headerlink" href="#id2" title="Permalink to this image">¶</a></p>
+</div>
+<p>Alternatively, we could use viroconcom’s standard plotting function…</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">viroconcom.plot</span> <span class="kn">import</span> <span class="n">plot_contour</span>
+
+<span class="n">plot_contour</span><span class="p">(</span><span class="n">iform_contour</span><span class="o">.</span><span class="n">coordinates</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">iform_contour</span><span class="o">.</span><span class="n">coordinates</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+             <span class="n">x_label</span><span class="o">=</span><span class="s1">&#39;Tp (s)&#39;</span><span class="p">,</span> <span class="n">y_label</span><span class="o">=</span><span class="s1">&#39;Hs (m)&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>to create this plot:</p>
+<div class="figure align-default" id="id3">
+<a class="reference internal image-reference" href="_images/example_contour_standard_plot.png"><img alt="example contours plot" src="_images/example_contour_standard_plot.png" style="width: 640.0px; height: 480.0px;" /></a>
+<p class="caption"><span class="caption-text">IFORM contour plotted with the function plot_contour().</span><a class="headerlink" href="#id3" title="Permalink to this image">¶</a></p>
+</div>
+</div>
+</div>
+</div>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+
+  <h3><a href="index.html">Table of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Define a joint distribution and calculate a contour</a><ul>
+<li><a class="reference internal" href="#create-independent-distribution">Create independent distribution</a></li>
+<li><a class="reference internal" href="#create-dependent-distribution">Create dependent distribution</a></li>
+<li><a class="reference internal" href="#bundle-distributions-and-dependencies-in-a-multivariate-distribution">Bundle distributions and dependencies in a multivariate distribution</a></li>
+<li><a class="reference internal" href="#constructing-the-contour">Constructing the contour</a><ul>
+<li><a class="reference internal" href="#inverse-first-order-reliability-method-iform">Inverse first-order reliability method (IFORM)</a></li>
+<li><a class="reference internal" href="#highest-density-contour-method">Highest density contour method</a></li>
+<li><a class="reference internal" href="#plotting-the-contour">Plotting the contour</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="workflow.html"
+                        title="previous chapter">Overall work flow and software architecture</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="fitting.html"
+                        title="next chapter">Fit a model structure to measured data</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/jointdistribution_and_contours.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="fitting.html" title="Fit a model structure to measured data"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="workflow.html" title="Overall work flow and software architecture"
+             accesskey="P">previous</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, viroconcom.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 3.2.1.
+    </div>
+  </body>
+</html>

@@ -1,0 +1,1480 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>viroconcom.fitting &#8212; viroconcom  documentation</title>
+    <link rel="stylesheet" href="../../_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/jquery.js"></script>
+    <script src="../../_static/underscore.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/language_data.js"></script>
+    <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+    <script src="../../_static/sidebar.js"></script>
+    
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../../_static/mini_logo.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+
+  </head><body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+        <li><a href="../../index.html">viroconcom  documentation</a> &#187;</li>
+          <li><a href="../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for viroconcom.fitting</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python3</span>
+<span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Fits distributions to data.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">multiprocessing</span> <span class="kn">import</span> <span class="n">Pool</span><span class="p">,</span> <span class="ne">TimeoutError</span>
+<span class="kn">from</span> <span class="nn">numbers</span> <span class="kn">import</span> <span class="n">Number</span>
+<span class="kn">import</span> <span class="nn">statsmodels.api</span> <span class="k">as</span> <span class="nn">sm</span>
+<span class="kn">import</span> <span class="nn">scipy.stats</span> <span class="k">as</span> <span class="nn">sts</span>
+<span class="kn">from</span> <span class="nn">scipy.optimize</span> <span class="kn">import</span> <span class="n">curve_fit</span><span class="p">,</span> <span class="n">minimize</span>
+<span class="kn">from</span> <span class="nn">inspect</span> <span class="kn">import</span> <span class="n">signature</span>
+
+<span class="kn">from</span> <span class="nn">.settings</span> <span class="kn">import</span> <span class="p">(</span><span class="n">SHAPE_STRING</span><span class="p">,</span> <span class="n">LOCATION_STRING</span><span class="p">,</span> <span class="n">SCALE_STRING</span><span class="p">,</span>
+                       <span class="n">SHAPE2_STRING</span><span class="p">,</span>
+                       <span class="n">LOGNORMAL_EXPMU_PARAMETER_KEYWORD</span><span class="p">,</span>
+                       <span class="n">LOGNORMAL_MU_PARAMETER_KEYWORD</span><span class="p">,</span>
+                       <span class="n">NORMAL_KEYWORD</span><span class="p">,</span> <span class="n">WEIBULL_3P_KEYWORD</span><span class="p">,</span>
+                       <span class="n">WEIBULL_3P_KEYWORD_ALTERNATIVE</span><span class="p">,</span>
+                       <span class="n">WEIBULL_2P_KEYWORD</span><span class="p">,</span> <span class="n">WEIBULL_EXP_KEYWORD</span><span class="p">,</span>
+                       <span class="n">INVERSE_GAUSSIAN_KEYWORD</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">.params</span> <span class="kn">import</span> <span class="n">ConstantParam</span><span class="p">,</span> <span class="n">FunctionParam</span>
+<span class="kn">from</span> <span class="nn">.distributions</span> <span class="kn">import</span> <span class="p">(</span><span class="n">WeibullDistribution</span><span class="p">,</span> <span class="n">ExponentiatedWeibullDistribution</span><span class="p">,</span>
+                            <span class="n">LognormalDistribution</span><span class="p">,</span> <span class="n">NormalDistribution</span><span class="p">,</span>
+                            <span class="n">InverseGaussianDistribution</span><span class="p">,</span>
+                            <span class="n">KernelDensityDistribution</span><span class="p">,</span> <span class="n">MultivariateDistribution</span><span class="p">)</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;Fit&quot;</span><span class="p">]</span>
+
+
+<span class="c1"># Dependence functions for the parameters, the following functions are available:</span>
+<span class="c1"># A 3-parameter power function (a dependence function).</span>
+<span class="k">def</span> <span class="nf">_power3</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span> <span class="o">*</span> <span class="n">x</span> <span class="o">**</span> <span class="n">c</span>
+
+
+<span class="c1"># A 3-parameter exponential function (a dependence function).</span>
+<span class="k">def</span> <span class="nf">_exp3</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">c</span> <span class="o">*</span> <span class="n">x</span><span class="p">)</span>
+
+
+<span class="c1"># Logarithmic square function. Function has two paramters, but 3 are given such</span>
+<span class="c1"># that in the software all dependence functions can be called with 3 parameters.</span>
+<span class="k">def</span> <span class="nf">_lnsquare2</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">a</span> <span class="o">+</span> <span class="n">b</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">divide</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="mf">9.81</span><span class="p">)))</span>
+
+
+<span class="c1"># 3-parameter function that decreases with x to the power of c (a dependence fucntion).</span>
+<span class="k">def</span> <span class="nf">_powerdecrease3</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">a</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">/</span> <span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">b</span><span class="p">)</span> <span class="o">**</span> <span class="n">c</span>
+
+
+<span class="c1"># 3-parameter function that asymptotically decreases (a dependence function).</span>
+<span class="k">def</span> <span class="nf">_asymdecrease3</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">c</span> <span class="o">*</span> <span class="n">x</span><span class="p">)</span>
+
+
+<span class="c1"># A 4-parameter logististics function (a dependence function).</span>
+<span class="k">def</span> <span class="nf">_logistics4</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">d</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">d</span><span class="p">)))</span>
+
+
+<span class="c1"># A 3-parameter function designed for the scale parameter (alpha) of an</span>
+<span class="c1"># exponentiated Weibull distribution with shape2=5 (see &#39;Global hierarchical</span>
+<span class="c1"># models for wind and wave contours&#39;).</span>
+<span class="k">def</span> <span class="nf">_alpha3</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">C1</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">C2</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">C3</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">C4</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">a</span> <span class="o">+</span> <span class="n">b</span> <span class="o">*</span> <span class="n">x</span> <span class="o">**</span> <span class="n">c</span><span class="p">)</span> \
+           <span class="o">/</span> <span class="mf">2.0445</span> <span class="o">**</span> <span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="n">_logistics4</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">C1</span><span class="p">,</span> <span class="n">C2</span><span class="p">,</span> <span class="n">C3</span><span class="p">,</span> <span class="n">C4</span><span class="p">))</span>
+           
+<span class="c1"># A 3-parameter 2nd order polynomial  (a dependence function).</span>
+<span class="k">def</span> <span class="nf">_poly2</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">a</span> <span class="o">*</span> <span class="n">x</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">b</span> <span class="o">*</span> <span class="n">x</span> <span class="o">+</span> <span class="n">c</span>
+
+<span class="c1"># A 2-parameter 1st order polynomial  (a dependence function).</span>
+<span class="k">def</span> <span class="nf">_poly1</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">a</span> <span class="o">*</span> <span class="n">x</span> <span class="o">+</span> <span class="n">b</span>
+
+
+<span class="c1"># Bounds for function parameters:</span>
+<span class="c1"># 0 &lt; a &lt; inf</span>
+<span class="c1"># 0 &lt; b &lt; inf</span>
+<span class="c1"># -inf &lt; c &lt; inf</span>
+<span class="c1"># 0 &lt; d &lt; inf</span>
+<span class="n">_bounds</span> <span class="o">=</span> <span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span><span class="o">.</span><span class="n">tiny</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span><span class="o">.</span><span class="n">tiny</span><span class="p">,</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span><span class="o">.</span><span class="n">tiny</span><span class="p">],</span>
+          <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">])</span>
+
+
+<span class="k">class</span> <span class="nc">BasicFit</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Holds the parameters (shape, loc, scale, shape2) and the raw data of a single fit.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    shape : float</span>
+<span class="sd">        The shape parameter for the fit.</span>
+
+<span class="sd">    loc : float</span>
+<span class="sd">        The location parameter for the fit.</span>
+
+<span class="sd">    scale : float</span>
+<span class="sd">        The scale parameter for the fit.</span>
+
+<span class="sd">    shape2 : float, defaults to None</span>
+<span class="sd">        The second shape parameter for the fit.</span>
+
+<span class="sd">    samples : list of float, defaults to None</span>
+<span class="sd">        The raw data that was used for this fit. For that case that there is no dependency this</span>
+<span class="sd">        list contains the whole data of the dimension.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">loc</span><span class="p">,</span> <span class="n">scale</span><span class="p">,</span> <span class="n">shape2</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">samples</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+        <span class="c1"># parameters for the distribution</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span> <span class="o">==</span> <span class="n">ConstantParam</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="n">shape</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">Number</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="n">shape</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">err_msg</span> <span class="o">=</span> <span class="s2">&quot;Parameter &#39;shape&#39; must be an instance of Number or type of ConstantParam &quot;</span> \
+                      <span class="s2">&quot;but was &#39;</span><span class="si">{}</span><span class="s2">&#39;.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">shape</span><span class="p">))</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">loc</span><span class="p">)</span> <span class="o">==</span> <span class="n">ConstantParam</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">loc</span> <span class="o">=</span> <span class="n">loc</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">loc</span><span class="p">,</span> <span class="n">Number</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">loc</span> <span class="o">=</span> <span class="n">loc</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">err_msg</span> <span class="o">=</span> <span class="s2">&quot;Parameter &#39;loc&#39; must be an instance of Number or type of ConstantParam &quot;</span> \
+                      <span class="s2">&quot;but was &#39;</span><span class="si">{}</span><span class="s2">&#39;.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">loc</span><span class="p">))</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">scale</span><span class="p">)</span> <span class="o">==</span> <span class="n">ConstantParam</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">scale</span> <span class="o">=</span> <span class="n">scale</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">scale</span><span class="p">,</span> <span class="n">Number</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">scale</span> <span class="o">=</span> <span class="n">scale</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">err_msg</span> <span class="o">=</span> <span class="s2">&quot;Parameter &#39;scale&#39; must be an instance of Number or type of ConstantParam &quot;</span> \
+                      <span class="s2">&quot;but was &#39;</span><span class="si">{}</span><span class="s2">&#39;.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">scale</span><span class="p">))</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">shape2</span><span class="p">)</span> <span class="o">==</span> <span class="n">ConstantParam</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">shape2</span> <span class="o">=</span> <span class="n">shape2</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">Number</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">shape2</span> <span class="o">=</span> <span class="n">shape2</span>
+        <span class="k">elif</span> <span class="n">shape2</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">shape2</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">err_msg</span> <span class="o">=</span> <span class="s2">&quot;Parameter &#39;shape2&#39; must be an instance of Number or type of ConstantParam &quot;</span> \
+                      <span class="s2">&quot;but was &#39;</span><span class="si">{}</span><span class="s2">&#39;.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">shape</span><span class="p">))</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
+
+
+        <span class="c1"># Raw data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">samples</span> <span class="o">=</span> <span class="n">samples</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;BasicFit with shape=</span><span class="si">{}</span><span class="s2">, loc=</span><span class="si">{}</span><span class="s2">, scale=</span><span class="si">{}</span><span class="s2">, shape2=</span><span class="si">{}</span><span class="s2">.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape2</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">FitInspectionData</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This class holds information for plotting the fits of a single dimension. It is used to give</span>
+<span class="sd">    a visual look about how good the fits in this dimension were.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    used_number_of_intervals : int</span>
+<span class="sd">        The actually number of intervals this dimension is divided for other dependent dimensions.</span>
+
+<span class="sd">    shape_at : list of float</span>
+<span class="sd">        Values of the interval centers of the parent variable that were used to</span>
+<span class="sd">        fit the shape parameter.</span>
+
+<span class="sd">    shape_value : list of float</span>
+<span class="sd">        The associated values of the parameter shape to the divided dimension the shape</span>
+<span class="sd">        parameter depends on.</span>
+
+<span class="sd">    loc_at : list of float</span>
+<span class="sd">        Values of the interval centers of the parent variable that were used to</span>
+<span class="sd">        fit the location parameter.</span>
+
+<span class="sd">    loc_value : list of float</span>
+<span class="sd">        The associated values of the parameter loc to the divided dimension the location</span>
+<span class="sd">        parameter depends on.</span>
+
+<span class="sd">    scale_at : list of float</span>
+<span class="sd">        Values of the interval centers of the parent variable that were used to</span>
+<span class="sd">        fit the scale parameter.</span>
+
+<span class="sd">    scale_value : list of float</span>
+<span class="sd">        The associated values of the parameter scale to the divided dimension the scale</span>
+<span class="sd">        parameter depends on.</span>
+
+<span class="sd">    shape2_at : list of float</span>
+<span class="sd">        Values of the interval centers of the parent variable that were used to</span>
+<span class="sd">        fit the shape2 parameter.</span>
+
+<span class="sd">    shape2_value : list of float</span>
+<span class="sd">        Values of the parameter shape2 at the nth interval.</span>
+
+<span class="sd">    shape_samples : list of list</span>
+<span class="sd">        This list with the length of the number of used intervals for the shape parameter</span>
+<span class="sd">        contains lists with the used samples for the respective fit.</span>
+
+<span class="sd">    loc_samples : list of list</span>
+<span class="sd">        This list with the length of the number of used intervals for the location parameter</span>
+<span class="sd">        contains lists with the used samples for the respective fit.</span>
+
+<span class="sd">    scale_samples : list of list</span>
+<span class="sd">        This list with the length of the number of used intervals for the scale parameter</span>
+<span class="sd">        contains lists with the used samples for the respective fit.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+        <span class="c1"># Number of the intervals this dimension is divided</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">used_number_of_intervals</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># Parameter values and the data they belong to</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">shape_at</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_shape_value</span> <span class="o">=</span> <span class="p">[[],</span> <span class="p">[],</span> <span class="p">[],</span> <span class="p">[]]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">loc_at</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_loc_value</span> <span class="o">=</span> <span class="p">[[],</span> <span class="p">[],</span> <span class="p">[],</span> <span class="p">[]]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">scale_at</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_scale_value</span> <span class="o">=</span> <span class="p">[[],</span> <span class="p">[],</span> <span class="p">[],</span> <span class="p">[]]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">shape2_at</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_shape2_value</span> <span class="o">=</span> <span class="p">[[],</span> <span class="p">[],</span> <span class="p">[],</span> <span class="p">[]]</span>
+
+        <span class="c1"># Raw data for each parameter of this dimension</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">shape_samples</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">loc_samples</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scale_samples</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">shape2_samples</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">shape_value</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Takes out the list that contains the shape parameters.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        list of float</span>
+<span class="sd">             The associated values of the parameter shape to the divided dimension the shape</span>
+<span class="sd">             parameter depends on.</span>
+<span class="sd">        Notes</span>
+<span class="sd">        ------</span>
+<span class="sd">        This function can be used as attribute.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_shape_value</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">loc_value</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Takes out the list that contains the location parameters.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        list of float</span>
+<span class="sd">             The associated values of the parameter loc to the divided dimension the location</span>
+<span class="sd">             parameter depends on.</span>
+<span class="sd">        Notes</span>
+<span class="sd">        ------</span>
+<span class="sd">        This function can be used as attribute.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_loc_value</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">scale_value</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Takes out the list that contains the scale parameters.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        list of float</span>
+<span class="sd">             The associated values of the parameter scale to the divided dimension the scale</span>
+<span class="sd">             parameter depends on.</span>
+<span class="sd">        Notes</span>
+<span class="sd">        ------</span>
+<span class="sd">        This function can be used as attribute.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_scale_value</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">shape2_value</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Takes out the list that contains the shape2 parameters.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        list of float</span>
+<span class="sd">             The associated values of the parameter shape2 to the divided</span>
+<span class="sd">             dimension the shape2 parameter depends on.</span>
+<span class="sd">        Notes</span>
+<span class="sd">        ------</span>
+<span class="sd">        This function can be used as attribute.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_shape2_value</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">get_dependent_param_points</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">param</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        This function can be used to get the param_at and the param_value lists as tuple for a</span>
+<span class="sd">        given parameter.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        param : str</span>
+<span class="sd">            The respective parameter.</span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple of list</span>
+<span class="sd">             The param_at and the param_value.</span>
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If the parameter is unknown.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">param</span> <span class="o">==</span> <span class="n">SHAPE_STRING</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape_at</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape_value</span>
+        <span class="k">elif</span> <span class="n">param</span> <span class="o">==</span> <span class="n">LOCATION_STRING</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc_at</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc_value</span>
+        <span class="k">elif</span> <span class="n">param</span> <span class="o">==</span> <span class="n">SCALE_STRING</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale_at</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale_value</span>
+        <span class="k">elif</span> <span class="n">param</span> <span class="o">==</span> <span class="n">SHAPE2_STRING</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape2_at</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape2_value</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">err_msg</span> <span class="o">=</span> <span class="s2">&quot;Parameter &#39;</span><span class="si">{}</span><span class="s2">&#39; is unknown.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">param</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">append_basic_fit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">param</span> <span class="p">,</span><span class="n">basic_fit</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        This function can be used to add a single fit to the hold data.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        param : str</span>
+<span class="sd">            The respective parameter the data should be associated.</span>
+<span class="sd">        basic_fit : BasicFit</span>
+<span class="sd">            The data of the single fit hold in a BasicData object.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If the parameter is unknown.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">param</span> <span class="o">==</span> <span class="n">SHAPE_STRING</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_shape_value</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">basic_fit</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_shape_value</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">basic_fit</span><span class="o">.</span><span class="n">loc</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_shape_value</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">basic_fit</span><span class="o">.</span><span class="n">scale</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_shape_value</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">basic_fit</span><span class="o">.</span><span class="n">shape2</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">shape_samples</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">basic_fit</span><span class="o">.</span><span class="n">samples</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">param</span> <span class="o">==</span> <span class="n">LOCATION_STRING</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_loc_value</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">basic_fit</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_loc_value</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">basic_fit</span><span class="o">.</span><span class="n">loc</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_loc_value</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">basic_fit</span><span class="o">.</span><span class="n">scale</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_loc_value</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">basic_fit</span><span class="o">.</span><span class="n">shape2</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">loc_samples</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">basic_fit</span><span class="o">.</span><span class="n">samples</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">param</span> <span class="o">==</span> <span class="n">SCALE_STRING</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_scale_value</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">basic_fit</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_scale_value</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">basic_fit</span><span class="o">.</span><span class="n">loc</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_scale_value</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">basic_fit</span><span class="o">.</span><span class="n">scale</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_scale_value</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">basic_fit</span><span class="o">.</span><span class="n">shape2</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">scale_samples</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">basic_fit</span><span class="o">.</span><span class="n">samples</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">param</span> <span class="o">==</span> <span class="n">SHAPE2_STRING</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_shape2_value</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">basic_fit</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_shape2_value</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">basic_fit</span><span class="o">.</span><span class="n">loc</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_shape2_value</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">basic_fit</span><span class="o">.</span><span class="n">scale</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_shape2_value</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">basic_fit</span><span class="o">.</span><span class="n">shape2</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">shape_samples</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">basic_fit</span><span class="o">.</span><span class="n">samples</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">err_msg</span> <span class="o">=</span> <span class="s2">&quot;Parameter &#39;</span><span class="si">{}</span><span class="s2">&#39; is unknown.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">param</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">get_basic_fit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">param</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        This function returns the data of a single fit to a given parameter and the index of the</span>
+<span class="sd">        interval of the divided dimension the parameter depends on.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        param : str</span>
+<span class="sd">            The respective parameter of the data.</span>
+<span class="sd">        index : int</span>
+<span class="sd">            The index of the interval.</span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        BasicFit</span>
+<span class="sd">             The data of the single fit hold in a BasicData object.</span>
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If the parameter is unknown.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">param</span> <span class="o">==</span> <span class="n">SHAPE_STRING</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">BasicFit</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_shape_value</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="n">index</span><span class="p">],</span>
+                            <span class="n">loc</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_shape_value</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="n">index</span><span class="p">],</span>
+                            <span class="n">scale</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_shape_value</span><span class="p">[</span><span class="mi">2</span><span class="p">][</span><span class="n">index</span><span class="p">],</span>
+                            <span class="n">shape2</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_shape_value</span><span class="p">[</span><span class="mi">3</span><span class="p">][</span><span class="n">index</span><span class="p">],</span>
+                            <span class="n">samples</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">shape_samples</span><span class="p">[</span><span class="n">index</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="n">param</span> <span class="o">==</span> <span class="n">LOCATION_STRING</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">BasicFit</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_loc_value</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="n">index</span><span class="p">],</span>
+                            <span class="n">loc</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_loc_value</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="n">index</span><span class="p">],</span>
+                            <span class="n">scale</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_loc_value</span><span class="p">[</span><span class="mi">2</span><span class="p">][</span><span class="n">index</span><span class="p">],</span>
+                            <span class="n">shape2</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_shape_value</span><span class="p">[</span><span class="mi">3</span><span class="p">][</span><span class="n">index</span><span class="p">],</span>
+                            <span class="n">samples</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">loc_samples</span><span class="p">[</span><span class="n">index</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="n">param</span> <span class="o">==</span> <span class="n">SCALE_STRING</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">BasicFit</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_scale_value</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="n">index</span><span class="p">],</span>
+                            <span class="n">loc</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_scale_value</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="n">index</span><span class="p">],</span>
+                            <span class="n">scale</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_scale_value</span><span class="p">[</span><span class="mi">2</span><span class="p">][</span><span class="n">index</span><span class="p">],</span>
+                            <span class="n">shape2</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_shape_value</span><span class="p">[</span><span class="mi">3</span><span class="p">][</span><span class="n">index</span><span class="p">],</span>
+                            <span class="n">samples</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">scale_samples</span><span class="p">[</span><span class="n">index</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">err_msg</span> <span class="o">=</span> <span class="s2">&quot;Parameter &#39;</span><span class="si">{}</span><span class="s2">&#39; is unknown.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">param</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="Fit"><a class="viewcode-back" href="../../api/fitting.html#viroconcom.fitting.Fit">[docs]</a><span class="k">class</span> <span class="nc">Fit</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Holds data and information about a fit.</span>
+
+<span class="sd">    Note</span>
+<span class="sd">    ----</span>
+<span class="sd">    The fitted results are not checked for correctness. The created distributions may not contain</span>
+<span class="sd">    useful parameters. Distribution parameters are being checked in the contour creation process.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    mul_var_dist : MultivariateDistribution</span>
+<span class="sd">        Distribution that is calculated</span>
+
+<span class="sd">    multiple_fit_inspection_data : list of FitInspectionData</span>
+<span class="sd">        Contains fit inspection data objects for each dimension.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    Create a Fit and visualize the result in a IFORM contour:</span>
+
+<span class="sd">    &gt;&gt;&gt; from multiprocessing import Pool</span>
+<span class="sd">    &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">    &gt;&gt;&gt; import matplotlib.pyplot as plt</span>
+<span class="sd">    &gt;&gt;&gt; import statsmodels.api as sm</span>
+<span class="sd">    &gt;&gt;&gt; import scipy.stats as sts</span>
+<span class="sd">    &gt;&gt;&gt; from scipy.optimize import curve_fit</span>
+<span class="sd">    &gt;&gt;&gt; from viroconcom.params import ConstantParam, FunctionParam</span>
+<span class="sd">    &gt;&gt;&gt; from viroconcom.distributions import (WeibullDistribution,\</span>
+<span class="sd">                                           LognormalDistribution,\</span>
+<span class="sd">                                           NormalDistribution,\</span>
+<span class="sd">                                           KernelDensityDistribution,\</span>
+<span class="sd">                                           MultivariateDistribution)</span>
+<span class="sd">    &gt;&gt;&gt; from viroconcom.contours import IFormContour</span>
+<span class="sd">    &gt;&gt;&gt; prng = np.random.RandomState(42)</span>
+<span class="sd">    &gt;&gt;&gt; sample_1 = prng.normal(10, 1, 500)</span>
+<span class="sd">    &gt;&gt;&gt; sample_2 = [point + prng.uniform(-5, 5) for point in sample_1]</span>
+<span class="sd">    &gt;&gt;&gt; dist_description_1 = {&#39;name&#39;: &#39;KernelDensity&#39;, &#39;dependency&#39;: (None, None, None), &#39;number_of_intervals&#39;: 5}</span>
+<span class="sd">    &gt;&gt;&gt; dist_description_2 = {&#39;name&#39;: &#39;Normal&#39;, &#39;dependency&#39;: (None, 0, None), &#39;functions&#39;:(None, &#39;power3&#39;, None)}</span>
+<span class="sd">    &gt;&gt;&gt; my_fit = Fit((sample_1, sample_2), (dist_description_1, dist_description_2))</span>
+<span class="sd">    &gt;&gt;&gt; my_contour = IFormContour(my_fit.mul_var_dist)</span>
+<span class="sd">    &gt;&gt;&gt; #example_plot = plt.scatter(my_contour.coordinates[0][0], my_contour.coordinates[0][1], label=&quot;IForm&quot;)</span>
+
+
+<span class="sd">    Create a Fit and visualize the result in a HDC contour:</span>
+
+<span class="sd">    &gt;&gt;&gt; from viroconcom.contours import HighestDensityContour</span>
+<span class="sd">    &gt;&gt;&gt; sample_3 = prng.weibull(2, 500) + 15</span>
+<span class="sd">    &gt;&gt;&gt; sample_4 = [point + prng.uniform(-1, 1) for point in sample_1]</span>
+<span class="sd">    &gt;&gt;&gt; dist_description_1 = {&#39;name&#39;: &#39;Weibull&#39;, &#39;dependency&#39;: (None, None, None)}</span>
+<span class="sd">    &gt;&gt;&gt; dist_description_2 = {&#39;name&#39;: &#39;Normal&#39;, &#39;dependency&#39;: (None, None, None)}</span>
+<span class="sd">    &gt;&gt;&gt; my_fit = Fit((sample_3, sample_4), (dist_description_1, dist_description_2))</span>
+<span class="sd">    &gt;&gt;&gt; return_period = 50</span>
+<span class="sd">    &gt;&gt;&gt; state_duration = 3</span>
+<span class="sd">    &gt;&gt;&gt; limits = [(0, 20), (0, 20)]</span>
+<span class="sd">    &gt;&gt;&gt; deltas = [0.05, 0.05]</span>
+<span class="sd">    &gt;&gt;&gt; my_contour = HighestDensityContour(my_fit.mul_var_dist, return_period, state_duration, limits, deltas,)</span>
+<span class="sd">    &gt;&gt;&gt; #example_plot2 = plt.scatter(my_contour.coordinates[0][0], my_contour.coordinates[0][1], label=&quot;HDC&quot;)</span>
+
+
+<span class="sd">    An Example how to visualize how good your fit is:</span>
+
+<span class="sd">    &gt;&gt;&gt; dist_description_0 = {&#39;name&#39;: &#39;Weibull_3p&#39;, &#39;dependency&#39;: (None, None, None), &#39;number_of_intervals&#39;: 3}</span>
+<span class="sd">    &gt;&gt;&gt; dist_description_1 = {&#39;name&#39;: &#39;Lognormal&#39;, &#39;dependency&#39;: (None, None, 0), &#39;functions&#39;: (None, None, &#39;exp3&#39;)}</span>
+<span class="sd">    &gt;&gt;&gt; my_fit = Fit((sample_1, sample_2), (dist_description_0, dist_description_1))</span>
+<span class="sd">    &gt;&gt;&gt;</span>
+<span class="sd">    &gt;&gt;&gt; #fig = plt.figure(figsize=(10, 8))</span>
+<span class="sd">    &gt;&gt;&gt; #example_text = fig.suptitle(&quot;Dependence of &#39;scale&#39;&quot;)</span>
+<span class="sd">    &gt;&gt;&gt;</span>
+<span class="sd">    &gt;&gt;&gt; #ax1 = fig.add_subplot(221)</span>
+<span class="sd">    &gt;&gt;&gt; #title1 = ax1.set_title(&quot;Fitted curve&quot;)</span>
+<span class="sd">    &gt;&gt;&gt; param_grid = my_fit.multiple_fit_inspection_data[1].scale_at</span>
+<span class="sd">    &gt;&gt;&gt; x_1 = np.linspace(5, 15, 100)</span>
+<span class="sd">    &gt;&gt;&gt; #ax1_plot = ax1.plot(param_grid, my_fit.multiple_fit_inspection_data[0].scale_value, &#39;x&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; #example_plot1 = ax1.plot(x_1, my_fit.mul_var_dist.distributions[1].scale(x_1))</span>
+<span class="sd">    &gt;&gt;&gt;</span>
+<span class="sd">    &gt;&gt;&gt; #ax2 = fig.add_subplot(222)</span>
+<span class="sd">    &gt;&gt;&gt; #title2 = ax2.set_title(&quot;Distribution &#39;1&#39;&quot;)</span>
+<span class="sd">    &gt;&gt;&gt; #ax2_hist = ax2.hist(my_fit.multiple_fit_inspection_data[1].scale_samples[0], normed=1)</span>
+<span class="sd">    &gt;&gt;&gt; shape = my_fit.mul_var_dist.distributions[1].shape(0)</span>
+<span class="sd">    &gt;&gt;&gt; scale = my_fit.mul_var_dist.distributions[1].scale(param_grid[0])</span>
+<span class="sd">    &gt;&gt;&gt; #ax2_plot = ax2.plot(np.linspace(0, 20, 100), sts.lognorm.pdf(np.linspace(0, 20, 100), s=shape, scale=scale))</span>
+<span class="sd">    &gt;&gt;&gt;</span>
+<span class="sd">    &gt;&gt;&gt; #ax3 = fig.add_subplot(223)</span>
+<span class="sd">    &gt;&gt;&gt; #title3 = ax3.set_title(&quot;Distribution &#39;2&#39;&quot;)</span>
+<span class="sd">    &gt;&gt;&gt; #ax3_hist = ax3.hist(my_fit.multiple_fit_inspection_data[1].scale_samples[1], normed=1)</span>
+<span class="sd">    &gt;&gt;&gt; shape = my_fit.mul_var_dist.distributions[1].shape(0)</span>
+<span class="sd">    &gt;&gt;&gt; scale = my_fit.mul_var_dist.distributions[1].scale(param_grid[1])</span>
+<span class="sd">    &gt;&gt;&gt; #ax3_plot = ax3.plot(np.linspace(0, 20, 100), sts.lognorm.pdf(np.linspace(0, 20, 100), s=shape, scale=scale))</span>
+<span class="sd">    &gt;&gt;&gt;</span>
+<span class="sd">    &gt;&gt;&gt; #ax4 = fig.add_subplot(224)</span>
+<span class="sd">    &gt;&gt;&gt; #title4 = ax4.set_title(&quot;Distribution &#39;3&#39;&quot;)</span>
+<span class="sd">    &gt;&gt;&gt; #ax4_hist = ax4.hist(my_fit.multiple_fit_inspection_data[1].scale_samples[2], normed=1)</span>
+<span class="sd">    &gt;&gt;&gt; shape = my_fit.mul_var_dist.distributions[1].shape(0)</span>
+<span class="sd">    &gt;&gt;&gt; scale = my_fit.mul_var_dist.distributions[1].scale(param_grid[2])</span>
+<span class="sd">    &gt;&gt;&gt; #ax4_plot = ax4.plot(np.linspace(0, 20, 100), sts.lognorm.pdf(np.linspace(0, 20, 100), s=shape, scale=scale))</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="Fit.__init__"><a class="viewcode-back" href="../../api/fitting.html#viroconcom.fitting.Fit.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">dist_descriptions</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Creates a Fit, by estimating the parameters of the distribution.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        samples : tuple or list of list</span>
+<span class="sd">            List that contains data to be fitted : samples[0] -&gt; first variable (i.e. wave height)</span>
+<span class="sd">                                                   samples[1] -&gt; second variable</span>
+<span class="sd">                                                   ...</span>
+<span class="sd">        dist_descriptions : list of dict</span>
+<span class="sd">            contains dictionary for each parameter. See note for further information.</span>
+
+<span class="sd">        timeout : int, optional</span>
+<span class="sd">            The maximum time in seconds there the contour has to be computed.</span>
+<span class="sd">            This parameter also controls multiprocessing. If timeout is None</span>
+<span class="sd">            serial processing is performed, if it is not None multiprocessing</span>
+<span class="sd">            is used. Defaults to None.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        TimeoutError</span>
+<span class="sd">            If the calculation takes too long and the given value for timeout is exceeded.</span>
+
+<span class="sd">        Note</span>
+<span class="sd">        ----</span>
+<span class="sd">        dist_descriptions contains the following keys where some are</span>
+<span class="sd">        required and some are optional.</span>
+
+<span class="sd">        Required:</span>
+
+<span class="sd">        name : str</span>
+<span class="sd">            name of distribution (defined in settings.py):</span>
+
+<span class="sd">            - Weibull_2p,</span>
+<span class="sd">            - Weibull_3p,</span>
+<span class="sd">            - Weibull_Exp</span>
+<span class="sd">            - Lognormal (shape, scale),</span>
+<span class="sd">            - Lognormal_SigmaMu (sigma, mu),</span>
+<span class="sd">            - Normal,</span>
+<span class="sd">            - InverseGaussian</span>
+<span class="sd">            - KernelDensity (no dependency)</span>
+
+<span class="sd">        dependency : tuple or list of int</span>
+<span class="sd">            Length of 3 or 4 in the order (shape, loc, scale, shape2) contains:</span>
+
+<span class="sd">            - None -&gt; no dependency</span>
+<span class="sd">            - int -&gt; depends on particular dimension</span>
+
+<span class="sd">        functions : tuple or list of str</span>
+<span class="sd">            Length of 3 in the order : (shape, loc, scale), usable options:</span>
+
+<span class="sd">            - :power3: :math:`a + b * x^c`</span>
+<span class="sd">            - :exp3: :math:`a + b * e^{x * c}`</span>
+<span class="sd">            - :lnsquare2: :math:`ln[a + b * sqrt(x / 9.81)`</span>
+<span class="sd">            - :powerdecrease3: :math:`a + 1 / (x + b)^c`</span>
+<span class="sd">            - :asymdecrease3: :math:`a + b / (1 + c * x)`</span>
+<span class="sd">            - :logistics4: :math:`a + b / [1 + e^{-1 * |c| * (x - d)}]`</span>
+<span class="sd">            - remark : in case of Lognormal_SigmaMu it is (sigma, None, mu)</span>
+
+<span class="sd">        Optional:</span>
+
+<span class="sd">        fixed_parameters : tuple of floats</span>
+<span class="sd">            If some parameters shall not be estimated, but should be fixed,</span>
+<span class="sd">            they can be specified with this key. Floats are interpeted in the</span>
+<span class="sd">            order (shape, location, scale, shape2).</span>
+
+<span class="sd">        do_use_weights_for_dependence_function : Boolean, defaults to False</span>
+<span class="sd">            If true the dependence function is fitted using weights. The weights</span>
+<span class="sd">            are 1 / parameter_value such that a normalization is performed.</span>
+
+<span class="sd">        and either number_of_intervals, width_of_intervals or points_per_interval:</span>
+
+<span class="sd">        number_of_intervals : int</span>
+<span class="sd">            Number of bins the data of this variable should be seperated for fits which depend</span>
+<span class="sd">            upon it. If the number of bins is given, the width of the bins is determined</span>
+<span class="sd">            automatically.</span>
+
+<span class="sd">        width_of_intervals : float</span>
+<span class="sd">            Width of the bins. When the width of the bins is given, the number of bins is</span>
+<span class="sd">            determined automatically.</span>
+<span class="sd">            </span>
+<span class="sd">        points_per_interval : int</span>
+<span class="sd">            The number of points per interval.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># If the distribution is 1D and the user did not create a list or tuple</span>
+        <span class="c1"># of length 1, let&#39;s create it</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">dist_descriptions</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="nb">list</span><span class="p">,</span><span class="nb">tuple</span><span class="p">]</span> <span class="ow">and</span> \
+                        <span class="nb">type</span><span class="p">(</span><span class="n">dist_descriptions</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">))</span> <span class="ow">is</span> <span class="nb">str</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">dist_descriptions</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">samples</span><span class="p">):</span>
+                <span class="n">samples</span> <span class="o">=</span> <span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="p">)</span>
+            <span class="n">dist_descriptions</span> <span class="o">=</span> <span class="p">(</span><span class="n">dist_descriptions</span><span class="p">,</span> <span class="p">)</span>
+
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">dist_descriptions</span> <span class="o">=</span> <span class="n">dist_descriptions</span> <span class="c1"># Compute references this attribute at plot.py</span>
+
+        <span class="n">list_number_of_intervals</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">list_width_of_intervals</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">list_points_per_interval</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">dist_description</span> <span class="ow">in</span> <span class="n">dist_descriptions</span><span class="p">:</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">dist_description</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;number_of_intervals&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span> 
+                <span class="ow">and</span> <span class="n">dist_description</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;width_of_intervals&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
+                <span class="ow">and</span> <span class="n">dist_description</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;points_per_interval&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">):</span>
+                <span class="n">dist_description</span><span class="p">[</span><span class="s1">&#39;number_of_intervals&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">15</span>
+            <span class="n">list_number_of_intervals</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dist_description</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;number_of_intervals&#39;</span><span class="p">))</span>
+            <span class="n">list_width_of_intervals</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dist_description</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;width_of_intervals&#39;</span><span class="p">))</span>
+            <span class="n">list_points_per_interval</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dist_description</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;points_per_interval&#39;</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">dist_description</span> <span class="ow">in</span> <span class="n">dist_descriptions</span><span class="p">:</span>
+            <span class="n">dist_description</span><span class="p">[</span><span class="s1">&#39;list_number_of_intervals&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">list_number_of_intervals</span>
+            <span class="n">dist_description</span><span class="p">[</span><span class="s1">&#39;list_width_of_intervals&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">list_width_of_intervals</span>
+            <span class="n">dist_description</span><span class="p">[</span><span class="s1">&#39;list_points_per_interval&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">list_points_per_interval</span>
+
+        <span class="c1"># Results will be computed for each dimension</span>
+        <span class="n">multiple_results</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">multiple_fit_inspection_data</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">distributions</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">dependencies</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">dimension</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">samples</span><span class="p">)):</span>
+            <span class="n">dist_description</span> <span class="o">=</span> <span class="n">dist_descriptions</span><span class="p">[</span><span class="n">dimension</span><span class="p">]</span>
+
+            <span class="c1"># Use multiprocessing if a timeout is defined.</span>
+            <span class="k">if</span> <span class="n">timeout</span><span class="p">:</span>
+                <span class="n">pool</span> <span class="o">=</span> <span class="n">Pool</span><span class="p">()</span>
+                <span class="n">multiple_results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="n">pool</span><span class="o">.</span><span class="n">apply_async</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_distribution</span><span class="p">,</span>
+                                     <span class="p">(</span><span class="n">dimension</span><span class="p">,</span> <span class="n">samples</span><span class="p">),</span>
+                                     <span class="n">dist_description</span><span class="p">)</span>
+                <span class="p">)</span>
+
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">kwargs</span> <span class="o">=</span> <span class="n">dist_description</span>
+                <span class="n">distribution</span><span class="p">,</span> <span class="n">dependency</span><span class="p">,</span> <span class="n">used_number_of_intervals</span><span class="p">,</span> \
+                <span class="n">fit_inspection_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_distribution</span><span class="p">(</span>
+                    <span class="n">dimension</span><span class="o">=</span><span class="n">dimension</span><span class="p">,</span>
+                    <span class="n">samples</span><span class="o">=</span><span class="n">samples</span><span class="p">,</span>
+                    <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+                <span class="n">distributions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">distribution</span><span class="p">)</span>
+                <span class="n">dependencies</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dependency</span><span class="p">)</span>
+
+                <span class="c1"># Save the used number of intervals</span>
+                <span class="k">for</span> <span class="n">dep_index</span><span class="p">,</span> <span class="n">dep</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">dependency</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">dep</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">dist_descriptions</span><span class="p">[</span><span class="n">dep</span><span class="p">][</span>
+                            <span class="s1">&#39;used_number_of_intervals&#39;</span><span class="p">]</span> <span class="o">=</span> \
+                            <span class="n">used_number_of_intervals</span><span class="p">[</span><span class="n">dep_index</span><span class="p">]</span>
+
+                <span class="bp">self</span><span class="o">.</span><span class="n">multiple_fit_inspection_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">fit_inspection_data</span><span class="p">)</span>
+
+        <span class="c1"># If multiprocessing is used we have to collect the results differently.</span>
+        <span class="k">if</span> <span class="n">timeout</span><span class="p">:</span>
+            <span class="c1"># Define start time</span>
+            <span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+            <span class="c1"># Get distributions</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">res</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">multiple_results</span><span class="p">):</span>
+                <span class="n">current_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+                <span class="n">time_difference</span> <span class="o">=</span> <span class="n">current_time</span> <span class="o">-</span> <span class="n">start_time</span> <span class="c1"># Previous used time</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">distribution</span><span class="p">,</span> <span class="n">dependency</span><span class="p">,</span> <span class="n">used_number_of_intervals</span><span class="p">,</span> <span class="n">fit_inspection_data</span> <span class="o">=</span> <span class="n">res</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+                        <span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="o">-</span><span class="n">time_difference</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">TimeoutError</span><span class="p">:</span>
+                    <span class="n">err_msg</span> <span class="o">=</span> <span class="s2">&quot;The calculation takes too long. &quot;</span> \
+                              <span class="s2">&quot;It takes longer than the given &quot;</span> \
+                              <span class="s2">&quot;value for a timeout, &quot;</span> \
+                              <span class="s2">&quot;which is &#39;</span><span class="si">{}</span><span class="s2"> seconds&#39;.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">timeout</span><span class="p">)</span>
+                    <span class="k">raise</span> <span class="ne">TimeoutError</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
+
+                <span class="c1"># Saves distribution and dependency for particular dimension</span>
+                <span class="n">distributions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">distribution</span><span class="p">)</span>
+                <span class="n">dependencies</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dependency</span><span class="p">)</span>
+
+                <span class="c1"># Add fit inspection data for current dimension</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">multiple_fit_inspection_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">fit_inspection_data</span><span class="p">)</span>
+
+                <span class="c1"># Save the used number of intervals</span>
+                <span class="k">for</span> <span class="n">dep_index</span><span class="p">,</span> <span class="n">dep</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">dependency</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">dep</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">dist_descriptions</span><span class="p">[</span><span class="n">dep</span><span class="p">][</span><span class="s1">&#39;used_number_of_intervals&#39;</span><span class="p">]</span> <span class="o">=</span> \
+                            <span class="n">used_number_of_intervals</span><span class="p">[</span><span class="n">dep_index</span><span class="p">]</span>
+
+            <span class="c1"># Add used number of intervals for dimensions with no dependency</span>
+            <span class="k">for</span> <span class="n">fit_inspection_data</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">multiple_fit_inspection_data</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">fit_inspection_data</span><span class="o">.</span><span class="n">used_number_of_intervals</span><span class="p">:</span>
+                    <span class="n">fit_inspection_data</span><span class="o">.</span><span class="n">used_number_of_intervals</span> <span class="o">=</span> <span class="mi">1</span>
+
+        <span class="c1"># Save multivariate distribution</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mul_var_dist</span> <span class="o">=</span> <span class="n">MultivariateDistribution</span><span class="p">(</span><span class="n">distributions</span><span class="p">,</span> <span class="n">dependencies</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Fit._fit_distribution"><a class="viewcode-back" href="../../api/fitting.html#viroconcom.fitting.Fit._fit_distribution">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_fit_distribution</span><span class="p">(</span><span class="n">sample</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">fixed_parameters</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Fits the distribution and returns the parameters.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        sample : list of float</span>
+<span class="sd">            Raw data the distribution is fitted on.</span>
+<span class="sd">        name : str</span>
+<span class="sd">            Name of the distribution (&quot;Weibull_2p&quot;, &quot;Weibull_3p&quot;, &quot;Lognormal&quot; or</span>
+<span class="sd">            &quot;Lognormal_SigmaMu&quot;, &quot;Normal&quot;, &quot;KernelDensity&quot;). They keyword list</span>
+<span class="sd">            is defined in settings.py.</span>
+<span class="sd">        fixed_parameters : tuple of float</span>
+<span class="sd">            Specifies which value parameters are fixed and thus are not</span>
+<span class="sd">            fitted. None means that it is not fixed, but shall be estimated.</span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple of ConstantParam</span>
+<span class="sd">             The computed parameters in the order of (shape, loc, scale, shape2).</span>
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If the distribution is unknown.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">fixed_parameters</span> <span class="o">!=</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> \
+                        <span class="n">name</span> <span class="o">!=</span> <span class="n">WEIBULL_EXP_KEYWORD</span><span class="p">:</span>
+            <span class="n">err_msg</span> <span class="o">=</span> <span class="s2">&quot;Fixing parameters is not implemented for the &quot;</span> \
+                      <span class="s2">&quot;distribution </span><span class="si">{}</span><span class="s2"> yet.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="o">==</span> <span class="n">WEIBULL_2P_KEYWORD</span><span class="p">:</span>
+            <span class="c1"># Do not fit the location parameter because it is 0 for a 2-p. dist.</span>
+            <span class="n">params</span> <span class="o">=</span> <span class="n">sts</span><span class="o">.</span><span class="n">weibull_min</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">sample</span><span class="p">,</span> <span class="n">floc</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">name</span> <span class="o">==</span> <span class="n">WEIBULL_3P_KEYWORD</span> <span class="ow">or</span> \
+                        <span class="n">name</span> <span class="o">==</span> <span class="n">WEIBULL_3P_KEYWORD_ALTERNATIVE</span><span class="p">:</span>
+            <span class="n">params</span> <span class="o">=</span> <span class="n">sts</span><span class="o">.</span><span class="n">weibull_min</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">sample</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">params</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;The estimated location parameter of a translated &#39;</span>
+                              <span class="s1">&#39;Weibull distribution was negative (</span><span class="si">{}</span><span class="s1">). However, &#39;</span>
+                              <span class="s1">&#39;as this is likely unphysical and could lead to &#39;</span>
+                              <span class="s1">&#39;problems with conditonal variables, the &#39;</span>
+                              <span class="s1">&#39;location parameter is set to 0.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span>
+                              <span class="ne">RuntimeWarning</span><span class="p">,</span> <span class="n">stacklevel</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+                <span class="n">params</span> <span class="o">=</span> <span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">0</span><span class="p">,</span> <span class="n">params</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="n">name</span> <span class="o">==</span> <span class="n">WEIBULL_EXP_KEYWORD</span><span class="p">:</span>
+            <span class="n">dist</span> <span class="o">=</span> <span class="n">ExponentiatedWeibullDistribution</span><span class="p">()</span>
+            <span class="n">params</span> <span class="o">=</span> <span class="n">dist</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">sample</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">fixed_parameters</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                                  <span class="n">scale</span><span class="o">=</span><span class="n">fixed_parameters</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+                                  <span class="n">loc</span><span class="o">=</span><span class="n">fixed_parameters</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>
+                                  <span class="n">shape2</span><span class="o">=</span><span class="n">fixed_parameters</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="n">name</span> <span class="o">==</span> <span class="n">NORMAL_KEYWORD</span><span class="p">:</span>
+            <span class="n">params</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">sts</span><span class="o">.</span><span class="n">norm</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">sample</span><span class="p">))</span>
+            <span class="c1"># Shape doesn&#39;t exist for normal</span>
+            <span class="n">params</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">name</span> <span class="o">==</span> <span class="n">LOGNORMAL_EXPMU_PARAMETER_KEYWORD</span> <span class="ow">or</span> \
+                        <span class="n">name</span> <span class="o">==</span> <span class="n">LOGNORMAL_MU_PARAMETER_KEYWORD</span><span class="p">:</span>
+            <span class="c1"># For the lognormal distribution the value of the location parameter is set to 0.</span>
+            <span class="n">params</span> <span class="o">=</span> <span class="n">sts</span><span class="o">.</span><span class="n">lognorm</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">sample</span><span class="p">,</span> <span class="n">floc</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">name</span> <span class="o">==</span> <span class="n">INVERSE_GAUSSIAN_KEYWORD</span><span class="p">:</span>
+            <span class="c1"># For the inverse Gaussian distribution the value of the location parameter is set to 0.</span>
+            <span class="n">params</span> <span class="o">=</span> <span class="n">sts</span><span class="o">.</span><span class="n">invgauss</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">sample</span><span class="p">,</span> <span class="n">floc</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;KernelDensity&#39;</span><span class="p">:</span>
+            <span class="n">dens</span> <span class="o">=</span> <span class="n">sm</span><span class="o">.</span><span class="n">nonparametric</span><span class="o">.</span><span class="n">KDEUnivariate</span><span class="p">(</span><span class="n">sample</span><span class="p">)</span>
+            <span class="n">dens</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">gridsize</span><span class="o">=</span><span class="mi">2000</span><span class="p">)</span>
+            <span class="c1"># Kernel density doesn&#39;t have shape, loc, scale</span>
+            <span class="k">return</span> <span class="p">(</span><span class="n">dens</span><span class="o">.</span><span class="n">cdf</span><span class="p">,</span> <span class="n">dens</span><span class="o">.</span><span class="n">icdf</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">err_msg</span> <span class="o">=</span> <span class="s2">&quot;Distribution &#39;</span><span class="si">{}</span><span class="s2">&#39; is unknown.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">params</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="n">constant_params</span> <span class="o">=</span> <span class="p">(</span><span class="n">ConstantParam</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                    <span class="n">ConstantParam</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span>
+                    <span class="n">ConstantParam</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="mi">2</span><span class="p">]),</span>
+                    <span class="n">ConstantParam</span><span class="p">(</span><span class="kc">None</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">params</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span><span class="p">:</span>
+            <span class="n">constant_params</span> <span class="o">=</span> <span class="p">(</span><span class="n">ConstantParam</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                    <span class="n">ConstantParam</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span>
+                    <span class="n">ConstantParam</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="mi">2</span><span class="p">]),</span>
+                    <span class="n">ConstantParam</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="mi">3</span><span class="p">]))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">err_msg</span> <span class="o">=</span> <span class="s2">&quot;params must have a length of 4, but was &#39;</span><span class="si">{}</span><span class="s2">&#39;.&quot;</span>\
+                <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">params</span><span class="p">))</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">constant_params</span></div>
+
+<div class="viewcode-block" id="Fit._get_function"><a class="viewcode-back" href="../../api/fitting.html#viroconcom.fitting.Fit._get_function">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_get_function</span><span class="p">(</span><span class="n">function_name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the function.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        function_name : str</span>
+<span class="sd">            Options are &#39;power3&#39;, &#39;exp3&#39;, &#39;lnsquare2&#39;, &#39;powerdecrease3&#39;,</span>
+<span class="sd">            &#39;asymdecrease3&#39;, &#39;logistics4&#39;, &#39;alpha3&#39;.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        func</span>
+<span class="sd">             The actual function named function_name.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If the function is unknown.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="n">function_name</span> <span class="o">==</span> <span class="s1">&#39;power3&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">_power3</span>
+        <span class="k">elif</span> <span class="n">function_name</span> <span class="o">==</span> <span class="s1">&#39;exp3&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">_exp3</span>
+        <span class="k">elif</span> <span class="n">function_name</span> <span class="o">==</span> <span class="s1">&#39;lnsquare2&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">_lnsquare2</span>
+        <span class="k">elif</span> <span class="n">function_name</span> <span class="o">==</span> <span class="s1">&#39;powerdecrease3&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">_powerdecrease3</span>
+        <span class="k">elif</span> <span class="n">function_name</span> <span class="o">==</span> <span class="s1">&#39;asymdecrease3&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">_asymdecrease3</span>
+        <span class="k">elif</span> <span class="n">function_name</span> <span class="o">==</span> <span class="s1">&#39;logistics4&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">_logistics4</span>
+        <span class="k">elif</span> <span class="n">function_name</span> <span class="o">==</span> <span class="s1">&#39;alpha3&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">_alpha3</span>
+        <span class="k">elif</span> <span class="n">function_name</span> <span class="o">==</span> <span class="s1">&#39;poly2&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">_poly2</span>
+        <span class="k">elif</span> <span class="n">function_name</span> <span class="o">==</span> <span class="s1">&#39;poly1&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">_poly1</span>
+        <span class="k">elif</span> <span class="n">function_name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">err_msg</span> <span class="o">=</span> <span class="s2">&quot;Function &#39;</span><span class="si">{}</span><span class="s2">&#39; is unknown.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">function_name</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Fit._append_params"><a class="viewcode-back" href="../../api/fitting.html#viroconcom.fitting.Fit._append_params">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_append_params</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">param_values</span><span class="p">,</span> <span class="n">dependency</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">sample</span><span class="p">,</span> <span class="n">fixed_parameters</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Distributions are being fitted and the results are appended to param_points.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        name : str</span>
+<span class="sd">            Name of distribution (e.g. &#39;Weibull_2p&#39; or &#39;Lognormal&#39;).</span>
+<span class="sd">        param_values : list of list,</span>
+<span class="sd">            Contains lists that contain values for each param : order (shape, loc, scale).</span>
+<span class="sd">        dependency : list of int</span>
+<span class="sd">            Length of 3 in the order (shape, loc, scale) contains :</span>
+<span class="sd">            None -&gt; no dependency</span>
+<span class="sd">            int -&gt; depends on particular dimension</span>
+<span class="sd">        index : int</span>
+<span class="sd">            The current parameter as int in the order of (shape, loc, scale) (i.e. 0 -&gt; shape).</span>
+<span class="sd">        sample : list of float</span>
+<span class="sd">            Values that are used to fit the distribution.</span>
+<span class="sd">        fixed_parameters : tuple of float</span>
+<span class="sd">            Specifies which value parameters are fixed and thus are not</span>
+<span class="sd">            fitted. None means that it is not fixed, but shall be estimated.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        BasicFit</span>
+<span class="sd">             The information of this single fit.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Fit distribution</span>
+        <span class="n">current_params</span> <span class="o">=</span> <span class="n">Fit</span><span class="o">.</span><span class="n">_fit_distribution</span><span class="p">(</span><span class="n">sample</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">fixed_parameters</span><span class="o">=</span><span class="n">fixed_parameters</span><span class="p">)</span>
+
+        <span class="c1"># Create basic fit object</span>
+        <span class="n">basic_fit</span> <span class="o">=</span> <span class="n">BasicFit</span><span class="p">(</span><span class="o">*</span><span class="n">current_params</span><span class="p">,</span> <span class="n">sample</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">dependency</span><span class="p">)):</span>
+            <span class="c1"># Check if there is a dependency and whether it is the right one</span>
+            <span class="k">if</span> <span class="n">dependency</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> \
+                            <span class="n">dependency</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="n">dependency</span><span class="p">[</span><span class="n">index</span><span class="p">]:</span>
+                <span class="c1"># Calculated parameter is appended to param_values</span>
+                <span class="n">param_values</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">current_params</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">basic_fit</span></div>
+
+<div class="viewcode-block" id="Fit._get_fitting_values"><a class="viewcode-back" href="../../api/fitting.html#viroconcom.fitting.Fit._get_fitting_values">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_get_fitting_values</span><span class="p">(</span><span class="n">sample</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">dependency</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span>
+                            <span class="n">number_of_intervals</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bin_width</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                            <span class="n">points_per_interval</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                            <span class="n">min_datapoints_for_fit</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+                            <span class="n">fixed_parameters</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns values for fitting.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        sample : list of float</span>
+<span class="sd">            The current sample to fit.</span>
+<span class="sd">        samples : list of list</span>
+<span class="sd">            List that contains data to be fitted : samples[0] -&gt; first variable (i.e. wave height)</span>
+<span class="sd">                                                   samples[1] -&gt; second variable</span>
+<span class="sd">                                                   ...</span>
+<span class="sd">        name : str</span>
+<span class="sd">            Name of distribution (e.g. &#39;Weibull_2p&#39; or &#39;Lognormal&#39;).</span>
+<span class="sd">        dependency : list of int</span>
+<span class="sd">            Length of 3 in the order (shape, loc, scale) contains :</span>
+<span class="sd">                None -&gt; no dependency</span>
+<span class="sd">                int -&gt; depends on particular dimension</span>
+<span class="sd">        index : int</span>
+<span class="sd">            Order : (shape, loc, scale) (i.e. 0 -&gt; shape).</span>
+<span class="sd">        number_of_intervals : int</span>
+<span class="sd">            Number of distributions used to fit shape, loc, scale.</span>
+<span class="sd">        min_datapoints_for_fit : int</span>
+<span class="sd">            Minimum number of datapoints required to perform the fit.</span>
+<span class="sd">        fixed_parameters : tuple of float</span>
+<span class="sd">            Specifies which value parameters are fixed and thus are not</span>
+<span class="sd">            fitted. None means that it is not fixed, but shall be estimated.</span>
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        For that case that number_of_intervals and also bin_width is given the parameter</span>
+<span class="sd">        number_of_intervals is used.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        interval_centers : ndarray</span>
+<span class="sd">            Array with length of the number of bins that contains the centers of the</span>
+<span class="sd">            calculated bins.</span>
+<span class="sd">        dist_values : list of list</span>
+<span class="sd">            List with length of the number of intervals that contains for each bin center</span>
+<span class="sd">            the used samples for the current fit.</span>
+<span class="sd">        param_values : list of list</span>
+<span class="sd">            List with length of three that contains for each parameter (shape, loc, scale)</span>
+<span class="sd">            a list with length of the number of bins that contains the calculated parameters.</span>
+<span class="sd">        multiple_basic_fit : list of BasicFit</span>
+<span class="sd">            Contains information for each fit.</span>
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        RuntimeError</span>
+<span class="sd">            If the parameter number_of_intervals or bin_width or points_per_interval was not specified.</span>
+<span class="sd">        RuntimeError</span>
+<span class="sd">            If there was not enough data and the number of intervals was less than three.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Sort samples.</span>
+        <span class="n">stacked_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">((</span><span class="n">sample</span><span class="p">,</span> <span class="n">samples</span><span class="p">[</span><span class="n">dependency</span><span class="p">[</span><span class="n">index</span><span class="p">]]))</span><span class="o">.</span><span class="n">T</span>
+        <span class="n">sort_indice</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">stacked_samples</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">])</span>
+        <span class="n">sorted_samples</span> <span class="o">=</span> <span class="n">stacked_samples</span><span class="p">[</span><span class="n">sort_indice</span><span class="p">]</span>
+
+        <span class="c1"># Compute intervals.</span>
+        <span class="k">if</span> <span class="n">number_of_intervals</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">interval_centers</span><span class="p">,</span> <span class="n">interval_width</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span>
+                <span class="nb">min</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="n">dependency</span><span class="p">[</span><span class="n">index</span><span class="p">]]),</span> <span class="nb">max</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="n">dependency</span><span class="p">[</span><span class="n">index</span><span class="p">]]),</span>
+                <span class="n">num</span><span class="o">=</span><span class="n">number_of_intervals</span><span class="p">,</span> <span class="n">endpoint</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">retstep</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">interval_centers</span> <span class="o">+=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">interval_width</span>
+        <span class="k">elif</span> <span class="n">bin_width</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">interval_width</span> <span class="o">=</span> <span class="n">bin_width</span>
+            <span class="n">interval_centers</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span>
+                <span class="mf">0.5</span> <span class="o">*</span> <span class="n">interval_width</span><span class="p">,</span>
+                <span class="nb">max</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="n">dependency</span><span class="p">[</span><span class="n">index</span><span class="p">]])</span> <span class="o">+</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">interval_width</span><span class="p">,</span>
+                <span class="n">interval_width</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">points_per_interval</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">n_full_chunks</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">sorted_samples</span><span class="p">)</span> <span class="o">/</span> <span class="n">points_per_interval</span><span class="p">)</span>
+            <span class="n">last_full_chunk_idx</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">n_full_chunks</span> <span class="o">*</span> <span class="n">points_per_interval</span><span class="p">)</span>
+            <span class="n">full_sample_chunks</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">sorted_samples</span><span class="p">[:</span><span class="n">last_full_chunk_idx</span><span class="p">],</span>
+                                          <span class="n">n_full_chunks</span><span class="p">)</span>
+            <span class="n">remaining_chunk</span> <span class="o">=</span> <span class="n">sorted_samples</span><span class="p">[</span><span class="n">last_full_chunk_idx</span><span class="p">:]</span>
+            <span class="c1"># Use the mean as it is used by ESSC</span>
+            <span class="c1"># (https://github.com/WEC-Sim/WDRT/blob/master/WDRT/ESSC.py),</span>
+            <span class="c1"># I would prefer median though</span>
+            <span class="n">full_chunk_centers</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">full_sample_chunks</span><span class="p">)[:,</span> <span class="p">:,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">remaining_chunk_center</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">remaining_chunk</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">])</span>
+            
+            <span class="n">sample_chunks</span> <span class="o">=</span> <span class="n">full_sample_chunks</span>
+            <span class="n">sample_chunks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">remaining_chunk</span><span class="p">)</span>
+            <span class="n">interval_centers</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">full_chunk_centers</span><span class="p">,</span> <span class="p">[</span><span class="n">remaining_chunk_center</span><span class="p">])</span>
+            
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                <span class="s2">&quot;Either the parameters number_of_intervals or bin_width or &quot;</span>
+                <span class="s2">&quot;points_per_interval has to be specified, &quot;</span>
+                <span class="s2">&quot;otherwise the intervals are not specified. Exiting.&quot;</span><span class="p">)</span>
+
+
+        
+
+        <span class="c1"># Return values.</span>
+        <span class="n">param_values</span> <span class="o">=</span> <span class="p">[[],</span> <span class="p">[],</span> <span class="p">[]]</span>
+        <span class="n">dist_values</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c1"># List of all basic fits.</span>
+        <span class="n">multiple_basic_fit</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c1"># Deleted interval_centers by index.</span>
+        <span class="n">deleted_centers</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c1"># Define the data interval that is used for the fit.</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">step</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">interval_centers</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">points_per_interval</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="c1"># samples_in_interval = sample_chunks[i]</span>
+                <span class="n">samples_in_interval</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">sample_chunks</span><span class="p">[</span><span class="n">i</span><span class="p">][:,</span> <span class="mi">0</span><span class="p">])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">mask</span> <span class="o">=</span> <span class="p">((</span><span class="n">sorted_samples</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">step</span> <span class="o">-</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">interval_width</span><span class="p">)</span> <span class="o">&amp;</span>
+                        <span class="p">(</span><span class="n">sorted_samples</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">step</span> <span class="o">+</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">interval_width</span><span class="p">))</span>
+                <span class="n">samples_in_interval</span> <span class="o">=</span> <span class="n">sorted_samples</span><span class="p">[</span><span class="n">mask</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">samples_in_interval</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">min_datapoints_for_fit</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="c1"># Fit distribution to selected data.</span>
+                    <span class="n">basic_fit</span> <span class="o">=</span> <span class="n">Fit</span><span class="o">.</span><span class="n">_append_params</span><span class="p">(</span><span class="n">name</span><span class="p">,</span>
+                                                   <span class="n">param_values</span><span class="p">,</span>
+                                                   <span class="n">dependency</span><span class="p">,</span>
+                                                   <span class="n">index</span><span class="p">,</span>
+                                                   <span class="n">samples_in_interval</span><span class="p">,</span>
+                                                   <span class="n">fixed_parameters</span><span class="o">=</span><span class="n">fixed_parameters</span><span class="p">)</span>
+                    <span class="n">multiple_basic_fit</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">basic_fit</span><span class="p">)</span>
+                    <span class="n">dist_values</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">samples_in_interval</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                    <span class="n">deleted_centers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="c1"># Add index of unused center.</span>
+                    <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                        <span class="s2">&quot;A ValueError occured for the interval centered at &#39;</span><span class="si">{}</span><span class="s2">&#39;&quot;</span>
+                        <span class="s2">&quot; in dimension &#39;</span><span class="si">{}</span><span class="s2">&#39;.&quot;</span>
+                            <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">step</span><span class="p">,</span> <span class="n">dependency</span><span class="p">[</span><span class="n">index</span><span class="p">]),</span>
+                        <span class="ne">RuntimeWarning</span><span class="p">,</span> <span class="n">stacklevel</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># For case that too few fitting data for the step were found</span>
+                <span class="c1"># the step is deleted.</span>
+                <span class="n">deleted_centers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="c1"># Add index of unused center.</span>
+
+
+        <span class="c1"># Delete interval centers that were not used.</span>
+        <span class="n">interval_centers</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">interval_centers</span><span class="p">,</span> <span class="n">deleted_centers</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">interval_centers</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="n">nr_of_intervals</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">interval_centers</span><span class="p">))</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Your settings resulted in &quot;</span> <span class="o">+</span> <span class="n">nr_of_intervals</span> <span class="o">+</span>
+                               <span class="s2">&quot; intervals. However, at least 3 intervals are &quot;</span>
+                               <span class="s2">&quot;required. Consider changing the required  &quot;</span>
+                               <span class="s2">&quot; minimum of datapoints within an interval using &quot;</span>
+                               <span class="s2">&quot;the &#39;min_datapoints_for_fit&#39; key.&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">interval_centers</span><span class="p">,</span> <span class="n">dist_values</span><span class="p">,</span> <span class="n">param_values</span><span class="p">,</span> <span class="n">multiple_basic_fit</span></div>
+
+<div class="viewcode-block" id="Fit._get_distribution"><a class="viewcode-back" href="../../api/fitting.html#viroconcom.fitting.Fit._get_distribution">[docs]</a>    <span class="k">def</span> <span class="nf">_get_distribution</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dimension</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the fitted distribution, the dependency and information to</span>
+<span class="sd">        visualize all fits for this dimension.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        dimension : int</span>
+<span class="sd">            Number of the variable. For example it can be 0, which means that</span>
+<span class="sd">            this is the first variable (for example sig. wave height).</span>
+<span class="sd">        samples : list of list</span>
+<span class="sd">            List that contains data to be fitted :</span>
+<span class="sd">            samples[0] -&gt; first variable (for example sig. wave height)</span>
+<span class="sd">            samples[1] -&gt; second variable (for example spectral peak period)</span>
+<span class="sd">            ...</span>
+<span class="sd">        **kwargs: contains the fit_description data to clarify which kind of</span>
+<span class="sd">            distribution with which method should be fitted.</span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        distribution : Distribution</span>
+<span class="sd">            The fitted distribution instance.</span>
+<span class="sd">        dependency : list of int</span>
+<span class="sd">            List that contains the used dependencies for fitting.</span>
+<span class="sd">        used_number_of_intervals: list of int</span>
+<span class="sd">            List with length of three that contains the used number of intervals</span>
+<span class="sd">            for each parameter (shape, loc, scale).</span>
+<span class="sd">        fit_inspection_data : FitInspectionData</span>
+<span class="sd">            Object that holds information about all fits in this dimension.</span>
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        NotImplementedError</span>
+<span class="sd">            If the the name of a dependent distribution was &#39;KernelDensity&#39;.</span>
+<span class="sd">        RuntimeError</span>
+<span class="sd">            If not a good fit was found.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Save settings for distribution</span>
+        <span class="n">sample</span> <span class="o">=</span> <span class="n">samples</span><span class="p">[</span><span class="n">dimension</span><span class="p">]</span>
+        <span class="k">if</span> <span class="s1">&#39;name&#39;</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">name</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">err_msg</span> <span class="o">=</span> <span class="s2">&quot;_get_distribution misses the argument &#39;name&#39;.&quot;</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
+        <span class="n">dependency</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dependency&#39;</span><span class="p">,</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
+        <span class="n">functions</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;functions&#39;</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;polynomial&#39;</span><span class="p">,</span> <span class="p">)</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">dependency</span><span class="p">))</span>
+        <span class="n">list_number_of_intervals</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;list_number_of_intervals&#39;</span><span class="p">)</span>
+        <span class="n">list_width_of_intervals</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;list_width_of_intervals&#39;</span><span class="p">)</span>
+        <span class="n">list_points_per_interval</span> <span class="o">=</span>  <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;list_points_per_interval&#39;</span><span class="p">)</span>
+        <span class="n">min_datapoints_for_fit</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;min_datapoints_for_fit&#39;</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span>
+        <span class="n">fixed_parameters</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;fixed_parameters&#39;</span><span class="p">,</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
+        <span class="n">do_use_weights_for_dependence_function</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;do_use_weights_for_dependence_function&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+
+        <span class="c1"># Fit inspection data for current dimension</span>
+        <span class="n">fit_inspection_data</span> <span class="o">=</span> <span class="n">FitInspectionData</span><span class="p">()</span>
+
+        <span class="c1"># Initialize used_number_of_intervals (shape, loc, scale, shape2)</span>
+        <span class="n">used_number_of_intervals</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+
+        <span class="c1"># Handle KernelDensity separated</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;KernelDensity&#39;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="n">x</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">dependency</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;KernelDensity can not be conditional.&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">KernelDensityDistribution</span><span class="p">(</span><span class="n">Fit</span><span class="o">.</span><span class="n">_fit_distribution</span><span class="p">(</span><span class="n">sample</span><span class="p">,</span> <span class="n">name</span><span class="p">)),</span> <span class="n">dependency</span><span class="p">,</span> \
+                   <span class="n">used_number_of_intervals</span><span class="p">,</span> <span class="n">fit_inspection_data</span>
+
+        <span class="c1"># Initialize params (shape, loc, scale, shape2). The second shape</span>
+        <span class="c1"># parameter is currently only used by the exponentiated Weibull distr.</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+
+        <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">dependency</span><span class="p">)):</span>
+
+            <span class="c1"># Continue if params is yet computed</span>
+            <span class="k">if</span> <span class="n">params</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">continue</span>
+
+            <span class="c1"># In case that there is no dependency for this param</span>
+            <span class="k">if</span> <span class="n">dependency</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">current_params</span> <span class="o">=</span> <span class="n">Fit</span><span class="o">.</span><span class="n">_fit_distribution</span><span class="p">(</span><span class="n">sample</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">fixed_parameters</span><span class="o">=</span><span class="n">fixed_parameters</span><span class="p">)</span>
+
+                <span class="c1"># Basic fit for no dependency</span>
+                <span class="n">basic_fit</span> <span class="o">=</span> <span class="n">BasicFit</span><span class="p">(</span><span class="o">*</span><span class="n">current_params</span><span class="p">,</span> <span class="n">sample</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">functions</span><span class="p">)):</span>
+                    <span class="c1"># Check if the other parameters have also no dependency</span>
+                    <span class="k">if</span> <span class="n">dependency</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+
+                        <span class="c1"># Add basic fit to fit inspection data</span>
+                        <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                            <span class="n">fit_inspection_data</span><span class="o">.</span><span class="n">append_basic_fit</span><span class="p">(</span><span class="n">SHAPE_STRING</span><span class="p">,</span>
+                                                                 <span class="n">basic_fit</span><span class="p">)</span>
+                        <span class="k">elif</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                            <span class="n">fit_inspection_data</span><span class="o">.</span><span class="n">append_basic_fit</span><span class="p">(</span><span class="n">LOCATION_STRING</span><span class="p">,</span>
+                                                                 <span class="n">basic_fit</span><span class="p">)</span>
+                        <span class="k">elif</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                            <span class="n">fit_inspection_data</span><span class="o">.</span><span class="n">append_basic_fit</span><span class="p">(</span><span class="n">SCALE_STRING</span><span class="p">,</span>
+                                                                 <span class="n">basic_fit</span><span class="p">)</span>
+                        <span class="k">elif</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+                            <span class="n">fit_inspection_data</span><span class="o">.</span><span class="n">append_basic_fit</span><span class="p">(</span><span class="n">SHAPE2_STRING</span><span class="p">,</span>
+                                                                 <span class="n">basic_fit</span><span class="p">)</span>
+
+                        <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">name</span> <span class="o">==</span> <span class="n">LOGNORMAL_MU_PARAMETER_KEYWORD</span><span class="p">:</span>
+                            <span class="n">params</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">ConstantParam</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">current_params</span><span class="p">[</span><span class="n">i</span><span class="p">](</span><span class="mi">0</span><span class="p">)))</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">params</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">current_params</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="c1"># In case that there is a dependency</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># If the number of intervals is given.</span>
+                <span class="k">if</span> <span class="n">list_number_of_intervals</span><span class="p">[</span><span class="n">dependency</span><span class="p">[</span><span class="n">index</span><span class="p">]]:</span>
+                    <span class="n">interval_centers</span><span class="p">,</span> <span class="n">dist_values</span><span class="p">,</span> <span class="n">param_values</span><span class="p">,</span> <span class="n">multiple_basic_fit</span> <span class="o">=</span> \
+                        <span class="n">Fit</span><span class="o">.</span><span class="n">_get_fitting_values</span><span class="p">(</span>
+                            <span class="n">sample</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">dependency</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span>
+                            <span class="n">number_of_intervals</span><span class="o">=</span><span class="n">list_number_of_intervals</span><span class="p">[</span><span class="n">dependency</span><span class="p">[</span><span class="n">index</span><span class="p">]],</span>
+                            <span class="n">min_datapoints_for_fit</span><span class="o">=</span><span class="n">min_datapoints_for_fit</span><span class="p">,</span>
+                            <span class="n">fixed_parameters</span><span class="o">=</span><span class="n">fixed_parameters</span><span class="p">)</span>
+                <span class="c1"># If a the (constant) width of the intervals is given.</span>
+                <span class="k">elif</span> <span class="n">list_width_of_intervals</span><span class="p">[</span><span class="n">dependency</span><span class="p">[</span><span class="n">index</span><span class="p">]]:</span>
+                    <span class="n">interval_centers</span><span class="p">,</span> <span class="n">dist_values</span><span class="p">,</span> <span class="n">param_values</span><span class="p">,</span> <span class="n">multiple_basic_fit</span> <span class="o">=</span> \
+                        <span class="n">Fit</span><span class="o">.</span><span class="n">_get_fitting_values</span><span class="p">(</span>
+                            <span class="n">sample</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">dependency</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span>
+                            <span class="n">bin_width</span><span class="o">=</span><span class="n">list_width_of_intervals</span><span class="p">[</span><span class="n">dependency</span><span class="p">[</span><span class="n">index</span><span class="p">]],</span>
+                            <span class="n">min_datapoints_for_fit</span><span class="o">=</span><span class="n">min_datapoints_for_fit</span><span class="p">,</span>
+                            <span class="n">fixed_parameters</span><span class="o">=</span><span class="n">fixed_parameters</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="n">list_points_per_interval</span><span class="p">[</span><span class="n">dependency</span><span class="p">[</span><span class="n">index</span><span class="p">]]:</span>
+                    <span class="n">interval_centers</span><span class="p">,</span> <span class="n">dist_values</span><span class="p">,</span> <span class="n">param_values</span><span class="p">,</span> <span class="n">multiple_basic_fit</span> <span class="o">=</span> \
+                        <span class="n">Fit</span><span class="o">.</span><span class="n">_get_fitting_values</span><span class="p">(</span>
+                            <span class="n">sample</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">dependency</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span>
+                            <span class="n">points_per_interval</span><span class="o">=</span><span class="n">list_points_per_interval</span><span class="p">[</span><span class="n">dependency</span><span class="p">[</span><span class="n">index</span><span class="p">]],</span>
+                            <span class="n">min_datapoints_for_fit</span><span class="o">=</span><span class="n">min_datapoints_for_fit</span><span class="p">,</span>
+                            <span class="n">fixed_parameters</span><span class="o">=</span><span class="n">fixed_parameters</span><span class="p">)</span>
+
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">functions</span><span class="p">)):</span>
+                    <span class="c1"># Check if the other parameters have the same dependency</span>
+                    <span class="k">if</span> <span class="n">dependency</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">dependency</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="n">dependency</span><span class="p">[</span><span class="n">index</span><span class="p">]:</span>
+                        <span class="c1"># Add basic fits to fit inspection data</span>
+                        <span class="k">for</span> <span class="n">basic_fit</span> <span class="ow">in</span> <span class="n">multiple_basic_fit</span><span class="p">:</span>
+                            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                                <span class="n">fit_inspection_data</span><span class="o">.</span><span class="n">append_basic_fit</span><span class="p">(</span>
+                                    <span class="n">SHAPE_STRING</span><span class="p">,</span>
+                                    <span class="n">basic_fit</span><span class="p">)</span>
+                            <span class="k">elif</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                                <span class="n">fit_inspection_data</span><span class="o">.</span><span class="n">append_basic_fit</span><span class="p">(</span>
+                                    <span class="n">LOCATION_STRING</span><span class="p">,</span>
+                                    <span class="n">basic_fit</span><span class="p">)</span>
+                            <span class="k">elif</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                                <span class="n">fit_inspection_data</span><span class="o">.</span><span class="n">append_basic_fit</span><span class="p">(</span>
+                                    <span class="n">SCALE_STRING</span><span class="p">,</span>
+                                    <span class="n">basic_fit</span><span class="p">)</span>
+                            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+                                <span class="n">fit_inspection_data</span><span class="o">.</span><span class="n">append_basic_fit</span><span class="p">(</span>
+                                    <span class="n">SHAPE2_STRING</span><span class="p">,</span>
+                                    <span class="n">basic_fit</span><span class="p">)</span>
+
+                        <span class="c1"># Add interval centers to fit inspection data</span>
+                        <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                            <span class="n">fit_inspection_data</span><span class="o">.</span><span class="n">shape_at</span> <span class="o">=</span> <span class="n">interval_centers</span>
+                        <span class="k">elif</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                            <span class="n">fit_inspection_data</span><span class="o">.</span><span class="n">loc_at</span> <span class="o">=</span> <span class="n">interval_centers</span>
+                        <span class="k">elif</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                            <span class="n">fit_inspection_data</span><span class="o">.</span><span class="n">scale_at</span> <span class="o">=</span> <span class="n">interval_centers</span>
+                        <span class="k">elif</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+                            <span class="n">fit_inspection_data</span><span class="o">.</span><span class="n">shape2_at</span> <span class="o">=</span> <span class="n">interval_centers</span>
+
+                        <span class="c1"># Add used number of intervals for current parameter</span>
+                        <span class="n">used_number_of_intervals</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">interval_centers</span><span class="p">)</span>
+
+                        <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">name</span> <span class="o">==</span> <span class="n">LOGNORMAL_MU_PARAMETER_KEYWORD</span><span class="p">:</span>
+                            <span class="n">fit_points</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">p</span><span class="p">(</span><span class="kc">None</span><span class="p">))</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">param_values</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">fit_points</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">param_values</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span>
+                        <span class="c1"># Fit parameters with particular dependence function.</span>
+                        <span class="k">try</span><span class="p">:</span>
+                            <span class="c1"># Get the number of parameters of the dependence function</span>
+                            <span class="c1"># and choose the according bounds for the fit.</span>
+                            <span class="n">sig</span> <span class="o">=</span> <span class="n">signature</span><span class="p">(</span><span class="n">Fit</span><span class="o">.</span><span class="n">_get_function</span><span class="p">(</span><span class="n">functions</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+                            <span class="n">nParam</span> <span class="o">=</span> <span class="mi">0</span>
+                            <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">sig</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+                                <span class="k">if</span> <span class="n">param</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="n">param</span><span class="o">.</span><span class="n">POSITIONAL_OR_KEYWORD</span> <span class="ow">and</span> \
+                                                <span class="n">param</span><span class="o">.</span><span class="n">default</span> <span class="ow">is</span> <span class="n">param</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+                                    <span class="n">nParam</span> <span class="o">=</span> <span class="n">nParam</span> <span class="o">+</span> <span class="mi">1</span>
+                            <span class="n">bLower</span> <span class="o">=</span> <span class="n">_bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">:</span> <span class="n">nParam</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+                            <span class="n">bUpper</span> <span class="o">=</span> <span class="n">_bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">:</span> <span class="n">nParam</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+                            <span class="n">bounds</span> <span class="o">=</span> <span class="p">(</span><span class="n">bLower</span><span class="p">,</span> <span class="n">bUpper</span><span class="p">)</span>
+
+
+                            <span class="k">if</span> <span class="n">functions</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;alpha3&quot;</span><span class="p">:</span>
+                                <span class="c1"># alpha3 is handled differently, since it</span>
+                                <span class="c1"># depends on a prevously fitted logistics4</span>
+                                <span class="c1"># function.</span>
+
+                                <span class="c1"># Get the fitted coefficients for the shape parameter,</span>
+                                <span class="c1"># which is modelled with a logistics4 function.</span>
+                                <span class="n">f</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                                <span class="n">C1</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">a</span>
+                                <span class="n">C2</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">b</span>
+                                <span class="n">C3</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">c</span>
+                                <span class="n">C4</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">d</span>
+
+                                <span class="c1"># The lambda function was used based on https://stackoverflow.com/</span>
+                                <span class="c1"># questions/47884910/fixing-fit-parameters-in-curve-fit</span>
+                                <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">func_name</span> <span class="o">==</span> <span class="s2">&quot;logistics4&quot;</span><span class="p">:</span>
+                                    <span class="k">if</span> <span class="n">do_use_weights_for_dependence_function</span><span class="p">:</span>
+                                        <span class="n">param_popt</span><span class="p">,</span> <span class="n">param_pcov</span> <span class="o">=</span> \
+                                            <span class="n">curve_fit</span><span class="p">(</span>
+                                                <span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span>
+                                                <span class="n">c</span><span class="p">:</span> <span class="n">Fit</span><span class="o">.</span><span class="n">_get_function</span><span class="p">(</span><span class="n">functions</span><span class="p">[</span><span class="n">i</span><span class="p">])(</span><span class="n">x</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span>
+                                                                                   <span class="n">C1</span><span class="o">=</span><span class="n">C1</span><span class="p">,</span> <span class="n">C2</span><span class="o">=</span><span class="n">C2</span><span class="p">,</span> <span class="n">C3</span><span class="o">=</span><span class="n">C3</span><span class="p">,</span> <span class="n">C4</span><span class="o">=</span><span class="n">C4</span><span class="p">),</span>
+                                                <span class="n">interval_centers</span><span class="p">,</span> <span class="n">fit_points</span><span class="p">,</span>
+                                                <span class="n">sigma</span><span class="o">=</span><span class="n">fit_points</span><span class="p">,</span> <span class="n">bounds</span><span class="o">=</span><span class="n">bounds</span><span class="p">)</span>
+                                    <span class="k">else</span><span class="p">:</span>
+                                        <span class="n">param_popt</span><span class="p">,</span> <span class="n">param_pcov</span> <span class="o">=</span> \
+                                            <span class="n">curve_fit</span><span class="p">(</span>
+                                                <span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span>
+                                                <span class="n">c</span><span class="p">:</span> <span class="n">Fit</span><span class="o">.</span><span class="n">_get_function</span><span class="p">(</span><span class="n">functions</span><span class="p">[</span><span class="n">i</span><span class="p">])(</span><span class="n">x</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span>
+                                                                                   <span class="n">C1</span><span class="o">=</span><span class="n">C1</span><span class="p">,</span> <span class="n">C2</span><span class="o">=</span><span class="n">C2</span><span class="p">,</span> <span class="n">C3</span><span class="o">=</span><span class="n">C3</span><span class="p">,</span> <span class="n">C4</span><span class="o">=</span><span class="n">C4</span><span class="p">),</span>
+                                                <span class="n">interval_centers</span><span class="p">,</span> <span class="n">fit_points</span><span class="p">,</span> <span class="n">bounds</span><span class="o">=</span><span class="n">bounds</span><span class="p">)</span>
+                                <span class="k">else</span><span class="p">:</span>
+                                    <span class="n">err_msg</span> <span class="o">=</span> \
+                                        <span class="s2">&quot;The alpha3 function is only &quot;</span> \
+                                        <span class="s2">&quot;allowed when shape is modelled &quot;</span> \
+                                        <span class="s2">&quot;with a logistics4 function. In your &quot;</span> \
+                                        <span class="s2">&quot;model shape is modelled with a function &quot;</span> \
+                                        <span class="s2">&quot;of type &#39;</span><span class="si">{}</span><span class="s2">&#39;.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">func_name</span><span class="p">)</span>
+                                    <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
+
+                            <span class="k">elif</span> <span class="n">functions</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;poly2&quot;</span><span class="p">:</span>
+                                <span class="c1"># This is based on the fitting described in</span>
+                                <span class="c1"># Eckert-Gallup2016: https://doi.org/10.1016/j.oceaneng.2015.12.018.</span>
+
+                                <span class="k">if</span> <span class="n">do_use_weights_for_dependence_function</span><span class="p">:</span>
+                                    <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;do_use_weights_for_dependence_function &quot;</span>
+                                                              <span class="s2">&quot;is not implemented for poly2&quot;</span><span class="p">)</span>
+
+                                <span class="n">x</span> <span class="o">=</span> <span class="n">interval_centers</span>
+                                <span class="n">y</span> <span class="o">=</span> <span class="n">fit_points</span>
+                                <span class="k">def</span> <span class="nf">error_func</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+                                    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">((</span><span class="n">_poly2</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">p</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">p</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">p</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span> <span class="o">-</span> <span class="n">y</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> 
+                                
+                                <span class="n">ineq_cons</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;ineq&quot;</span><span class="p">,</span>
+                                             <span class="s2">&quot;fun&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">x</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span> <span class="p">(</span><span class="mi">4</span> <span class="o">*</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">])]),</span>
+                                             <span class="s2">&quot;jac&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span> <span class="p">(</span><span class="mi">4</span><span class="o">*</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="p">),</span> 
+                                                                        <span class="o">-</span><span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">/</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> 
+                                                                        <span class="mi">1</span><span class="p">]]),</span>
+                                             <span class="p">}</span>
+                                <span class="n">p0</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+                                <span class="n">bounds</span> <span class="o">=</span> <span class="p">[(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="kc">None</span><span class="p">)]</span>
+                                <span class="n">res</span> <span class="o">=</span> <span class="n">minimize</span><span class="p">(</span><span class="n">error_func</span><span class="p">,</span> <span class="n">p0</span><span class="p">,</span> 
+                                               <span class="n">method</span><span class="o">=</span><span class="s2">&quot;SLSQP&quot;</span><span class="p">,</span> 
+                                               <span class="n">constraints</span><span class="o">=</span><span class="p">[</span><span class="n">ineq_cons</span><span class="p">],</span>
+                                               <span class="n">bounds</span><span class="o">=</span><span class="n">bounds</span><span class="p">,</span>
+                                               <span class="n">options</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;ftol&#39;</span><span class="p">:</span> <span class="mf">1e-9</span><span class="p">,</span> <span class="s2">&quot;disp&quot;</span><span class="p">:</span><span class="kc">False</span><span class="p">},</span>
+                                               <span class="p">)</span>
+                                <span class="n">param_popt</span> <span class="o">=</span> <span class="n">res</span><span class="o">.</span><span class="n">x</span>
+
+                            <span class="k">elif</span> <span class="n">functions</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;poly1&quot;</span><span class="p">:</span> 
+                                <span class="c1"># This special case is necessary as for poly1</span>
+                                <span class="c1"># negative parameters must be allowed to comply</span>
+                                <span class="c1"># with ESSC.py</span>
+                                <span class="c1"># https://github.com/WEC-Sim/WDRT/blob/master/WDRT/ESSC.py</span>
+                                <span class="k">if</span> <span class="n">do_use_weights_for_dependence_function</span><span class="p">:</span>
+                                    <span class="n">param_popt</span><span class="p">,</span> <span class="n">param_pcov</span> <span class="o">=</span> <span class="n">curve_fit</span><span class="p">(</span>
+                                    <span class="n">Fit</span><span class="o">.</span><span class="n">_get_function</span><span class="p">(</span><span class="n">functions</span><span class="p">[</span><span class="n">i</span><span class="p">]),</span>
+                                    <span class="n">interval_centers</span><span class="p">,</span> <span class="n">fit_points</span><span class="p">,</span>
+                                        <span class="n">sigma</span><span class="o">=</span><span class="n">fit_points</span><span class="p">)</span>
+                                <span class="k">else</span><span class="p">:</span>
+                                    <span class="n">param_popt</span><span class="p">,</span> <span class="n">param_pcov</span> <span class="o">=</span> <span class="n">curve_fit</span><span class="p">(</span>
+                                    <span class="n">Fit</span><span class="o">.</span><span class="n">_get_function</span><span class="p">(</span><span class="n">functions</span><span class="p">[</span><span class="n">i</span><span class="p">]),</span>
+                                    <span class="n">interval_centers</span><span class="p">,</span> <span class="n">fit_points</span><span class="p">,)</span>
+                                
+                            <span class="k">else</span><span class="p">:</span>
+                                <span class="k">if</span> <span class="n">do_use_weights_for_dependence_function</span><span class="p">:</span>
+                                    <span class="n">param_popt</span><span class="p">,</span> <span class="n">param_pcov</span> <span class="o">=</span> <span class="n">curve_fit</span><span class="p">(</span>
+                                    <span class="n">Fit</span><span class="o">.</span><span class="n">_get_function</span><span class="p">(</span><span class="n">functions</span><span class="p">[</span><span class="n">i</span><span class="p">]),</span>
+                                    <span class="n">interval_centers</span><span class="p">,</span> <span class="n">fit_points</span><span class="p">,</span>
+                                        <span class="n">sigma</span><span class="o">=</span><span class="n">fit_points</span><span class="p">,</span> <span class="n">bounds</span><span class="o">=</span><span class="n">bounds</span><span class="p">)</span>
+                                <span class="k">else</span><span class="p">:</span>
+                                    <span class="n">param_popt</span><span class="p">,</span> <span class="n">param_pcov</span> <span class="o">=</span> <span class="n">curve_fit</span><span class="p">(</span>
+                                    <span class="n">Fit</span><span class="o">.</span><span class="n">_get_function</span><span class="p">(</span><span class="n">functions</span><span class="p">[</span><span class="n">i</span><span class="p">]),</span>
+                                    <span class="n">interval_centers</span><span class="p">,</span> <span class="n">fit_points</span><span class="p">,</span> <span class="n">bounds</span><span class="o">=</span><span class="n">bounds</span><span class="p">)</span>
+
+                        <span class="k">except</span> <span class="ne">RuntimeError</span><span class="p">:</span>
+                            <span class="c1"># Case that optimal parameters not found</span>
+                            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">name</span> <span class="o">==</span> <span class="n">LOGNORMAL_MU_PARAMETER_KEYWORD</span><span class="p">:</span>
+                                <span class="n">param_name</span> <span class="o">=</span> <span class="s2">&quot;sigma&quot;</span>
+                            <span class="k">elif</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">name</span> <span class="o">==</span> <span class="n">LOGNORMAL_MU_PARAMETER_KEYWORD</span><span class="p">:</span>
+                                <span class="n">param_name</span> <span class="o">=</span> <span class="s2">&quot;mu&quot;</span>
+                            <span class="k">elif</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                                <span class="n">param_name</span> <span class="o">=</span> <span class="n">SHAPE_STRING</span>
+                            <span class="k">elif</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                                <span class="n">param_name</span> <span class="o">=</span> <span class="n">LOCATION_STRING</span>
+                            <span class="k">elif</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                                <span class="n">param_name</span> <span class="o">=</span> <span class="n">SCALE_STRING</span>
+                            <span class="k">elif</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+                                <span class="n">param_name</span> <span class="o">=</span> <span class="n">SHAPE2_STRING</span>
+
+                            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                                <span class="s2">&quot;Optimal Parameters not found for parameter &#39;</span><span class="si">{}</span><span class="s2">&#39; in dimension &quot;</span>
+                                <span class="s2">&quot;&#39;</span><span class="si">{}</span><span class="s2">&#39;. Maybe switch the given function for a better fit. Trying &quot;</span>
+                                <span class="s2">&quot;again with a higher number of calls to function &#39;</span><span class="si">{}</span><span class="s2">&#39;.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                                    <span class="n">param_name</span><span class="p">,</span> <span class="n">dimension</span><span class="p">,</span> <span class="n">functions</span><span class="p">[</span><span class="n">i</span><span class="p">]),</span>
+                                <span class="ne">RuntimeWarning</span><span class="p">,</span> <span class="n">stacklevel</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+                            <span class="k">try</span><span class="p">:</span>
+                                <span class="n">param_popt</span><span class="p">,</span> <span class="n">param_pcov</span> <span class="o">=</span> <span class="n">curve_fit</span><span class="p">(</span>
+                                    <span class="n">Fit</span><span class="o">.</span><span class="n">_get_function</span><span class="p">(</span><span class="n">functions</span><span class="p">[</span><span class="n">i</span><span class="p">]),</span> <span class="n">interval_centers</span><span class="p">,</span> <span class="n">fit_points</span><span class="p">,</span>
+                                    <span class="n">bounds</span><span class="o">=</span><span class="n">_bounds</span><span class="p">,</span> <span class="n">maxfev</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="mf">1e6</span><span class="p">))</span>
+                            <span class="k">except</span> <span class="ne">RuntimeError</span><span class="p">:</span>
+                                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                                    <span class="s2">&quot;Can&#39;t fit curve for parameter &#39;</span><span class="si">{}</span><span class="s2">&#39; in dimension &#39;</span><span class="si">{}</span><span class="s2">&#39;. &quot;</span>
+                                    <span class="s2">&quot;Number of iterations exceeded.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">param_name</span><span class="p">,</span> <span class="n">dimension</span><span class="p">))</span>
+
+                        <span class="c1"># Save parameter</span>
+                        <span class="k">if</span> <span class="n">functions</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;alpha3&quot;</span><span class="p">:</span>
+                            <span class="n">a</span> <span class="o">=</span> <span class="n">param_popt</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                            <span class="n">b</span> <span class="o">=</span> <span class="n">param_popt</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                            <span class="n">c</span> <span class="o">=</span> <span class="n">param_popt</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+                            <span class="n">params</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">FunctionParam</span><span class="p">(</span><span class="n">functions</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span>
+                                                     <span class="n">C1</span><span class="o">=</span><span class="n">C1</span><span class="p">,</span> <span class="n">C2</span><span class="o">=</span><span class="n">C2</span><span class="p">,</span> <span class="n">C3</span><span class="o">=</span><span class="n">C3</span><span class="p">,</span> <span class="n">C4</span><span class="o">=</span><span class="n">C4</span><span class="p">)</span>
+                        <span class="k">elif</span> <span class="n">functions</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;poly1&quot;</span><span class="p">:</span>
+                            <span class="n">a</span> <span class="o">=</span> <span class="n">param_popt</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                            <span class="n">b</span> <span class="o">=</span> <span class="n">param_popt</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                            <span class="n">params</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">FunctionParam</span><span class="p">(</span><span class="n">functions</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">params</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">FunctionParam</span><span class="p">(</span><span class="n">functions</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="o">*</span><span class="n">param_popt</span><span class="p">)</span>
+
+
+        <span class="c1"># Return particular distribution</span>
+        <span class="n">distribution</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="o">==</span> <span class="n">WEIBULL_2P_KEYWORD</span> <span class="ow">or</span> <span class="n">name</span> <span class="o">==</span> <span class="n">WEIBULL_3P_KEYWORD</span> <span class="ow">or</span> \
+                        <span class="n">name</span> <span class="o">==</span> <span class="n">WEIBULL_3P_KEYWORD_ALTERNATIVE</span><span class="p">:</span>
+            <span class="n">distribution</span> <span class="o">=</span> <span class="n">WeibullDistribution</span><span class="p">(</span><span class="o">*</span><span class="n">params</span><span class="p">[:</span><span class="mi">3</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="n">name</span> <span class="o">==</span> <span class="n">WEIBULL_EXP_KEYWORD</span><span class="p">:</span>
+            <span class="n">distribution</span> <span class="o">=</span> <span class="n">ExponentiatedWeibullDistribution</span><span class="p">(</span><span class="o">*</span><span class="n">params</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">name</span> <span class="o">==</span> <span class="n">LOGNORMAL_MU_PARAMETER_KEYWORD</span><span class="p">:</span>
+            <span class="n">distribution</span> <span class="o">=</span> <span class="n">LognormalDistribution</span><span class="p">(</span><span class="n">sigma</span><span class="o">=</span><span class="n">params</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">mu</span><span class="o">=</span><span class="n">params</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="n">name</span> <span class="o">==</span> <span class="n">LOGNORMAL_EXPMU_PARAMETER_KEYWORD</span><span class="p">:</span>
+            <span class="n">distribution</span> <span class="o">=</span> <span class="n">LognormalDistribution</span><span class="p">(</span><span class="o">*</span><span class="n">params</span><span class="p">[:</span><span class="mi">3</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="n">name</span> <span class="o">==</span> <span class="n">NORMAL_KEYWORD</span><span class="p">:</span>
+            <span class="n">distribution</span> <span class="o">=</span> <span class="n">NormalDistribution</span><span class="p">(</span><span class="o">*</span><span class="n">params</span><span class="p">[:</span><span class="mi">3</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="n">name</span> <span class="o">==</span> <span class="n">INVERSE_GAUSSIAN_KEYWORD</span><span class="p">:</span>
+            <span class="n">distribution</span> <span class="o">=</span> <span class="n">InverseGaussianDistribution</span><span class="p">(</span><span class="o">*</span><span class="n">params</span><span class="p">[:</span><span class="mi">3</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">distribution</span><span class="p">,</span> <span class="n">dependency</span><span class="p">,</span> <span class="n">used_number_of_intervals</span><span class="p">,</span> <span class="n">fit_inspection_data</span></div>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;Fit() instance with dist_dscriptions: &quot;</span> <span class="o">+</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_descriptions</span><span class="p">])</span></div>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">doctest</span>
+    <span class="n">doctest</span><span class="o">.</span><span class="n">testmod</span><span class="p">()</span>
+    <span class="c1"># Fit data by creating a Fit object</span>
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, viroconcom.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 3.2.1.
+    </div>
+  </body>
+</html>

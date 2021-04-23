@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>viroconcom.params module &#8212; viroconcom  documentation</title>
+    <link rel="stylesheet" href="../_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+    <script src="../_static/sidebar.js"></script>
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../_static/mini_logo.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+
+  </head><body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+        <li><a href="../index.html">viroconcom  documentation</a> &#187;</li> 
+      </ul>
+    </div>
+    
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-viroconcom.params">
+<span id="viroconcom-params-module"></span><h1>viroconcom.params module<a class="headerlink" href="#module-viroconcom.params" title="Permalink to this headline">¶</a></h1>
+<p>Parameter for distributions.</p>
+<dl class="py class">
+<dt id="viroconcom.params.ConstantParam">
+<em class="property">class </em><code class="sig-prename descclassname">viroconcom.params.</code><code class="sig-name descname">ConstantParam</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">constant</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/viroconcom/params.html#ConstantParam"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#viroconcom.params.ConstantParam" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#viroconcom.params.Param" title="viroconcom.params.Param"><code class="xref py py-class docutils literal notranslate"><span class="pre">viroconcom.params.Param</span></code></a></p>
+<p>A constant, but callable parameter.</p>
+<dl class="py method">
+<dt id="viroconcom.params.ConstantParam.__init__">
+<code class="sig-name descname">__init__</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">constant</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/viroconcom/params.html#ConstantParam.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#viroconcom.params.ConstantParam.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>constant</strong> (<em>scalar</em>) – The constant value to return.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt id="viroconcom.params.FunctionParam">
+<em class="property">class </em><code class="sig-prename descclassname">viroconcom.params.</code><code class="sig-name descname">FunctionParam</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">func_name</span></em>, <em class="sig-param"><span class="n">a</span></em>, <em class="sig-param"><span class="n">b</span></em>, <em class="sig-param"><span class="n">c</span></em>, <em class="sig-param"><span class="n">d</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">C1</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">C2</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">C3</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">C4</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">wrapper</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/viroconcom/params.html#FunctionParam"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#viroconcom.params.FunctionParam" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#viroconcom.params.Param" title="viroconcom.params.Param"><code class="xref py py-class docutils literal notranslate"><span class="pre">viroconcom.params.Param</span></code></a></p>
+<p>A callable parameter, which depends on the value supplied.</p>
+<dl class="py method">
+<dt id="viroconcom.params.FunctionParam.__init__">
+<code class="sig-name descname">__init__</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">func_name</span></em>, <em class="sig-param"><span class="n">a</span></em>, <em class="sig-param"><span class="n">b</span></em>, <em class="sig-param"><span class="n">c</span></em>, <em class="sig-param"><span class="n">d</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">C1</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">C2</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">C3</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">C4</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">wrapper</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/viroconcom/params.html#FunctionParam.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#viroconcom.params.FunctionParam.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>func_name</strong> (<a class="reference external" href="https://docs.python.org/3.6/library/stdtypes.html#str" title="(in Python v3.6)"><em>str</em></a>) – <dl class="simple">
+<dt>Defines which kind of dependence function to use:</dt><dd><dl class="field-list simple">
+<dt class="field-odd">power3</dt>
+<dd class="field-odd"><p><span class="math notranslate nohighlight">\(a + b * x^c\)</span></p>
+</dd>
+<dt class="field-even">exp3</dt>
+<dd class="field-even"><p><span class="math notranslate nohighlight">\(a + b * e^{x * c}\)</span></p>
+</dd>
+<dt class="field-odd">lnsquare2</dt>
+<dd class="field-odd"><p><span class="math notranslate nohighlight">\(\ln[a + b * \sqrt(x / 9.81)]\)</span></p>
+</dd>
+<dt class="field-even">powerdecrease3</dt>
+<dd class="field-even"><p><span class="math notranslate nohighlight">\(a + 1 / (x + b)^c\)</span></p>
+</dd>
+<dt class="field-odd">asymdecrease3</dt>
+<dd class="field-odd"><p><span class="math notranslate nohighlight">\(a + b / (1 + c * x)\)</span></p>
+</dd>
+<dt class="field-even">logistics4</dt>
+<dd class="field-even"><p><span class="math notranslate nohighlight">\(a + b / [1 + e^{-1 * |c| * (x - d)}]\)</span></p>
+</dd>
+</dl>
+</dd>
+</dl>
+</p></li>
+<li><p><strong>a</strong> (<a class="reference external" href="https://docs.python.org/3.6/library/functions.html#float" title="(in Python v3.6)"><em>float</em></a>) – The function parameters.</p></li>
+<li><p><strong>b</strong> (<a class="reference external" href="https://docs.python.org/3.6/library/functions.html#float" title="(in Python v3.6)"><em>float</em></a>) – The function parameters.</p></li>
+<li><p><strong>c</strong> (<a class="reference external" href="https://docs.python.org/3.6/library/functions.html#float" title="(in Python v3.6)"><em>float</em></a>) – The function parameters.</p></li>
+<li><p><strong>d</strong> (<a class="reference external" href="https://docs.python.org/3.6/library/functions.html#float" title="(in Python v3.6)"><em>float</em></a><em>, </em><em>defaults to None</em>) – An optional function parameter (only some function have more than
+3 parameters.</p></li>
+<li><p><strong>C1</strong> (<a class="reference external" href="https://docs.python.org/3.6/library/functions.html#float" title="(in Python v3.6)"><em>float</em></a><em>, </em><em>default to None</em>) – Parameters that are used for the alpha3 dependence function.</p></li>
+<li><p><strong>C2</strong> (<a class="reference external" href="https://docs.python.org/3.6/library/functions.html#float" title="(in Python v3.6)"><em>float</em></a><em>, </em><em>default to None</em>) – Parameters that are used for the alpha3 dependence function.</p></li>
+<li><p><strong>C3</strong> (<a class="reference external" href="https://docs.python.org/3.6/library/functions.html#float" title="(in Python v3.6)"><em>float</em></a><em>, </em><em>default to None</em>) – Parameters that are used for the alpha3 dependence function.</p></li>
+<li><p><strong>C4</strong> (<a class="reference external" href="https://docs.python.org/3.6/library/functions.html#float" title="(in Python v3.6)"><em>float</em></a><em>, </em><em>default to None</em>) – Parameters that are used for the alpha3 dependence function.</p></li>
+<li><p><strong>wrapper</strong> (<em>function</em><em> or </em><a class="reference internal" href="#viroconcom.params.Wrapper" title="viroconcom.params.Wrapper"><em>Wrapper</em></a>) – A function or a Wrapper object to wrap around the function.
+The function has to be pickleable. (i.e. lambdas, clojures, etc. are not supported.)
+Using this wrapper, one can e.g. create <span class="math notranslate nohighlight">\(exp(a + b * x^c)\)</span>
+with func_type=polynomial and wrapper=math.exp.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt id="viroconcom.params.Param">
+<em class="property">class </em><code class="sig-prename descclassname">viroconcom.params.</code><code class="sig-name descname">Param</code><a class="reference internal" href="../_modules/viroconcom/params.html#Param"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#viroconcom.params.Param" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3.6/library/abc.html#abc.ABC" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">abc.ABC</span></code></a></p>
+<p>Abstract base class for callable parameters.</p>
+<p>Replaces a constant or a function, so no distinction has to be made.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt id="viroconcom.params.Wrapper">
+<em class="property">class </em><code class="sig-prename descclassname">viroconcom.params.</code><code class="sig-name descname">Wrapper</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">func</span></em>, <em class="sig-param"><span class="n">inner_wrapper</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/viroconcom/params.html#Wrapper"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#viroconcom.params.Wrapper" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3.6/library/functions.html#object" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+</dd></dl>
+
+</div>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/api/params.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, viroconcom.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 3.2.1.
+    </div>
+  </body>
+</html>

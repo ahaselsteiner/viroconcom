@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>viroconcom._n_sphere &#8212; viroconcom  documentation</title>
+    <link rel="stylesheet" href="../../_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/jquery.js"></script>
+    <script src="../../_static/underscore.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/language_data.js"></script>
+    <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+    <script src="../../_static/sidebar.js"></script>
+    
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../../_static/mini_logo.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+
+  </head><body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+        <li><a href="../../index.html">viroconcom  documentation</a> &#187;</li>
+          <li><a href="../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for viroconcom._n_sphere</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python3</span>
+<span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Sample (almost) equally distributed points on an n-spheres surface.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">itertools</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;NSphere&quot;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="NSphere"><a class="viewcode-back" href="../../api/_n_sphere.html#viroconcom._n_sphere.NSphere">[docs]</a><span class="k">class</span> <span class="nc">NSphere</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This class calculates almost equally spaced points on a n-sphere.</span>
+
+<span class="sd">    It considers the Thomson problem [#]_ to distribute the points on the sphere.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [#] https://en.wikipedia.org/wiki/Thomson_problem</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+
+<span class="sd">    &gt;&gt;&gt; sphere = NSphere(3, 1000)</span>
+<span class="sd">    &gt;&gt;&gt; samples = sphere.unit_sphere_points</span>
+<span class="sd">    &gt;&gt;&gt; #%% plot sphere</span>
+<span class="sd">    &gt;&gt;&gt; from mpl_toolkits.mplot3d import Axes3D</span>
+<span class="sd">    &gt;&gt;&gt; import matplotlib.pyplot as plt</span>
+<span class="sd">    &gt;&gt;&gt; plt.close(&#39;all&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; #fig = plt.figure(figsize=plt.figaspect(1))</span>
+<span class="sd">    &gt;&gt;&gt; #ax = fig.add_subplot(111, projection=&#39;3d&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; u = np.linspace(0, 2 * np.pi, 50)</span>
+<span class="sd">    &gt;&gt;&gt; v = np.linspace(0, np.pi, 30)</span>
+<span class="sd">    &gt;&gt;&gt; x = np.outer(np.cos(u), np.sin(v))</span>
+<span class="sd">    &gt;&gt;&gt; y = np.outer(np.sin(u), np.sin(v))</span>
+<span class="sd">    &gt;&gt;&gt; z = np.outer(np.ones(np.size(u)), np.cos(v))</span>
+<span class="sd">    &gt;&gt;&gt; #wireframe_plot = ax.plot_wireframe(x, y, z, rcount=10, ccount=10,)</span>
+<span class="sd">    &gt;&gt;&gt; #sphere_plot = ax.scatter(samples[:, 0], samples[:, 1], samples[:, 2],\</span>
+<span class="sd">                                 c=&#39;green&#39;, depthshade=False, label=&quot;verteilt&quot;)</span>
+<span class="sd">    &gt;&gt;&gt; #plot_legend = ax.legend()</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="NSphere.__init__"><a class="viewcode-back" href="../../api/_n_sphere.html#viroconcom._n_sphere.NSphere.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">n_samples</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        dim : int</span>
+<span class="sd">            The number of dimensions. (i.e. the n in n-sphere plus 1)</span>
+<span class="sd">        n_samples : int</span>
+<span class="sd">            The number of points to distribute on the n-sphere.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">=</span> <span class="n">dim</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_samples</span> <span class="o">=</span> <span class="n">n_samples</span>
+
+        <span class="c1">#combinations for selecting all different indice</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">combs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">comb</span> <span class="k">for</span> <span class="n">comb</span> <span class="ow">in</span> <span class="n">itertools</span><span class="o">.</span><span class="n">combinations</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_samples</span><span class="p">),</span> <span class="mi">2</span><span class="p">)])</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">unit_sphere_points</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_random_unit_sphere_points</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">init_e_pot</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pot_energy</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_relax_points</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rela_e_pot</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pot_energy</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">improvement</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">init_e_pot</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">rela_e_pot</span><span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">init_e_pot</span> <span class="o">*</span> <span class="mi">100</span></div>
+
+
+<div class="viewcode-block" id="NSphere._relax_points"><a class="viewcode-back" href="../../api/_n_sphere.html#viroconcom._n_sphere.NSphere._relax_points">[docs]</a>    <span class="k">def</span> <span class="nf">_relax_points</span><span class="p">(</span><span class="bp">self</span><span class="p">,):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Iteratively move points to reduce potential energy.</span>
+
+<span class="sd">        Iteratively moves points in the direction of the tangential part of the</span>
+<span class="sd">        coloumb forces and calculates the potential energy after each iteration.</span>
+<span class="sd">        The best state, i.e. the state with least potential energy, is saved.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">best_state</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">unit_sphere_points</span><span class="p">)</span>
+        <span class="n">best_pot</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pot_energy</span><span class="p">()</span>
+
+        <span class="c1"># Define the number osf iterations based on the size of the sample size.</span>
+        <span class="c1"># At least 10 iterations should be performed. 10 is an empirical value.</span>
+        <span class="n">max_iters</span> <span class="o">=</span> <span class="nb">max</span><span class="p">([</span><span class="mi">10</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="mi">10000</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_samples</span><span class="p">)])</span>
+
+
+        <span class="k">for</span> <span class="n">iteration</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_iters</span><span class="p">):</span>
+
+            <span class="c1"># Tau controls the step size of the optimization. With each iteration</span>
+            <span class="c1"># a smaller step is chosen. 3 is an empirical value.</span>
+            <span class="n">tau</span> <span class="o">=</span> <span class="mi">3</span> <span class="o">/</span> <span class="n">iteration</span>
+
+            <span class="n">tang_forces</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tangential_forces</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_forces</span><span class="p">())</span>
+
+            <span class="c1"># Norm to max force</span>
+            <span class="n">max_force</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">tang_forces</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,))</span>
+            <span class="n">tang_forces</span> <span class="o">/=</span> <span class="n">max_force</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">unit_sphere_points</span> <span class="o">+=</span> <span class="n">tang_forces</span> <span class="o">*</span> <span class="n">tau</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">unit_sphere_points</span> <span class="o">/=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">unit_sphere_points</span><span class="p">,</span>
+                                                      <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                                                      <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+            <span class="n">curr_pot</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pot_energy</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">curr_pot</span> <span class="o">&lt;</span> <span class="n">best_pot</span><span class="p">:</span>
+                <span class="n">best_state</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">unit_sphere_points</span><span class="p">)</span>
+                <span class="n">best_pot</span> <span class="o">=</span> <span class="n">curr_pot</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">unit_sphere_points</span> <span class="o">=</span> <span class="n">best_state</span></div>
+
+<div class="viewcode-block" id="NSphere._random_unit_sphere_points"><a class="viewcode-back" href="../../api/_n_sphere.html#viroconcom._n_sphere.NSphere._random_unit_sphere_points">[docs]</a>    <span class="k">def</span> <span class="nf">_random_unit_sphere_points</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generates equally distributed points on the sphere&#39;s surface.</span>
+
+<span class="sd">        Note</span>
+<span class="sd">        ----</span>
+<span class="sd">        Used algorithm:</span>
+
+<span class="sd">        - Use a N(0,1) standard normal distribution to generate cartesian coordinate vectors.</span>
+<span class="sd">        - Normalize the vectors to length 1.</span>
+<span class="sd">        - The points then are uniformly distributed on the sphere&#39;s surface.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># create pseudorandom number generator with seed for reproducability</span>
+        <span class="n">prng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">RandomState</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="mi">43</span><span class="p">)</span>
+        <span class="c1">#  draw normally distributed samples</span>
+        <span class="n">rand_points</span> <span class="o">=</span> <span class="n">prng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_samples</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span><span class="p">))</span>
+        <span class="c1"># calculate lengths of vectors</span>
+        <span class="n">radii</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">rand_points</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="c1"># normalize</span>
+        <span class="k">return</span> <span class="n">rand_points</span> <span class="o">/</span> <span class="n">radii</span></div>
+
+
+<div class="viewcode-block" id="NSphere._pot_energy"><a class="viewcode-back" href="../../api/_n_sphere.html#viroconcom._n_sphere.NSphere._pot_energy">[docs]</a>    <span class="k">def</span> <span class="nf">_pot_energy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculates the potential energy of the current state.</span>
+
+<span class="sd">        Assume the points on the sphere are electrons with charge equal to 1 and</span>
+<span class="sd">        assume Coulomb&#39;s constant equal to 1. Then the electrostatic potential energy of</span>
+<span class="sd">        :math:`N` electrons can be written as:</span>
+
+<span class="sd">        .. math::</span>
+
+<span class="sd">            U = \\sum_{i &lt; j } \\frac{1}{\\lvert {r_{ij}} \\rvert}</span>
+
+<span class="sd">        With :math:`0 \\leq i &lt; j \\leq N` and :math:`\\lvert {r_{ij}} \\rvert` the distance vector</span>
+<span class="sd">        between electron :math:`i` and :math:`j`.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">dist_vectors</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">unit_sphere_points</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">combs</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]]</span>
+                        <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit_sphere_points</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">combs</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]])</span>
+
+        <span class="n">distances</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">dist_vectors</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">distances</span><span class="o">**-</span><span class="mi">1</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="NSphere._get_forces"><a class="viewcode-back" href="../../api/_n_sphere.html#viroconcom._n_sphere.NSphere._get_forces">[docs]</a>    <span class="k">def</span> <span class="nf">_get_forces</span><span class="p">(</span><span class="bp">self</span><span class="p">,):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculates the Coloumb forces.</span>
+
+<span class="sd">        Assume the :math:`N` points are electrons with charge 1 and Coloumb&#39;s constant is 1.</span>
+<span class="sd">        The Coulomb force on point :math:`i` can then be expressed as:</span>
+
+<span class="sd">        .. math::</span>
+
+<span class="sd">            F_i = \\sum_{j \\neq i} \\frac{1}{{\\lvert {r_{ij}} \\rvert}^2},</span>
+<span class="sd">            0 \\leq j \\leq N</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">r_dash</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit_sphere_points</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,</span> <span class="p">:]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit_sphere_points</span>
+        <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">divide</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">,</span> <span class="n">invalid</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">):</span>
+            <span class="n">single_forces</span> <span class="o">=</span> <span class="n">r_dash</span> <span class="o">/</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">r_dash</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">**</span><span class="mi">3</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">nansum</span><span class="p">(</span><span class="n">single_forces</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="NSphere._tangential_forces"><a class="viewcode-back" href="../../api/_n_sphere.html#viroconcom._n_sphere.NSphere._tangential_forces">[docs]</a>    <span class="k">def</span> <span class="nf">_tangential_forces</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">forces</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculates the tangential part of the forces.</span>
+
+<span class="sd">        First calculates the radial forces and substracts them to get the tangential part.</span>
+<span class="sd">        With :math:`\\vec{r_i}` the radial vector pointing to point :math:`i`,</span>
+<span class="sd">        :math:`F_i` the force on point :math:`i`, and scalar product :math:`\\langle~,~\\rangle`,</span>
+<span class="sd">        the radial force can be calculated like:</span>
+
+<span class="sd">            .. math::</span>
+
+<span class="sd">                \\vec{F_{i_{rad}}} = \\langle\\vec{F_i}, \\vec{r_i}\\rangle  \\vec{r_i}</span>
+
+<span class="sd">        The tangential force is then expressed by:</span>
+
+<span class="sd">            .. math::</span>
+
+<span class="sd">                \\vec{F_{i_{tan}}} = \\vec{F_i} - \\vec{F_{i_{rad}}}</span>
+
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        forces : ndarray,</span>
+<span class="sd">            The forces to calculate the tangential part of.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">scalar_product</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">forces</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit_sphere_points</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">radial_forces</span> <span class="o">=</span> <span class="n">scalar_product</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit_sphere_points</span>
+        <span class="k">return</span> <span class="n">forces</span> <span class="o">-</span> <span class="n">radial_forces</span></div></div>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+
+<span class="c1">#    sphere = NSphere(3, 1000)</span>
+<span class="c1">#</span>
+<span class="c1">#    samples = sphere.unit_sphere_points</span>
+<span class="c1">#</span>
+<span class="c1">#    print(&quot;Initial : E_pot = {}&quot;.format(sphere.init_e_pot))</span>
+<span class="c1">#    print(&quot;Relaxed : E_pot = {}&quot;.format(sphere.rela_e_pot))</span>
+<span class="c1">#    print(&quot;Verbesserung: {} %&quot;.format(sphere.improvement))</span>
+<span class="c1">#</span>
+<span class="c1">#    #%% plot sphere</span>
+<span class="c1">#    from mpl_toolkits.mplot3d import Axes3D</span>
+<span class="c1">#    import matplotlib.pyplot as plt</span>
+<span class="c1">#    plt.close(&#39;all&#39;)</span>
+<span class="c1">#    fig = plt.figure(figsize=plt.figaspect(1))</span>
+<span class="c1">#    ax2 = fig.add_subplot(111, projection=&#39;3d&#39;)</span>
+<span class="c1">#</span>
+<span class="c1">#    u = np.linspace(0, 2 * np.pi, 50)</span>
+<span class="c1">#    v = np.linspace(0, np.pi, 30)</span>
+<span class="c1">#</span>
+<span class="c1">#    x = np.outer(np.cos(u), np.sin(v))</span>
+<span class="c1">#    y = np.outer(np.sin(u), np.sin(v))</span>
+<span class="c1">#    z = np.outer(np.ones(np.size(u)), np.cos(v))</span>
+<span class="c1">#</span>
+<span class="c1">#    ax2.plot_wireframe(x, y, z, rcount=10, ccount=10,)</span>
+<span class="c1">#</span>
+<span class="c1">#</span>
+<span class="c1">#    ax2.scatter(samples[:, 0], samples[:, 1], samples[:, 2],</span>
+<span class="c1">#                c=&#39;green&#39;, depthshade=False, label=&quot;verteilt&quot;)</span>
+<span class="c1">#</span>
+<span class="c1">#    ax2.legend()</span>
+<span class="c1">#    plt.show()</span>
+    <span class="kn">import</span> <span class="nn">doctest</span>
+    <span class="n">doctest</span><span class="o">.</span><span class="n">testmod</span><span class="p">()</span>
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, viroconcom.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 3.2.1.
+    </div>
+  </body>
+</html>

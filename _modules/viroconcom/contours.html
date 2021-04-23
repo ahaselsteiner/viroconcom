@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>viroconcom.contours &#8212; viroconcom  documentation</title>
+    <link rel="stylesheet" href="../../_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/jquery.js"></script>
+    <script src="../../_static/underscore.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/language_data.js"></script>
+    <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+    <script src="../../_static/sidebar.js"></script>
+    
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../../_static/mini_logo.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+
+  </head><body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+        <li><a href="../../index.html">viroconcom  documentation</a> &#187;</li>
+          <li><a href="../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for viroconcom.contours</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python3</span>
+<span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Create Contours.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">from</span> <span class="nn">abc</span> <span class="kn">import</span> <span class="n">ABC</span><span class="p">,</span> <span class="n">abstractmethod</span>
+<span class="kn">from</span> <span class="nn">multiprocessing</span> <span class="kn">import</span> <span class="n">Pool</span><span class="p">,</span> <span class="ne">TimeoutError</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">scipy.stats</span> <span class="k">as</span> <span class="nn">sts</span>
+<span class="kn">import</span> <span class="nn">scipy.ndimage</span> <span class="k">as</span> <span class="nn">ndi</span>
+<span class="kn">import</span> <span class="nn">networkx</span> <span class="k">as</span> <span class="nn">nx</span>
+<span class="kn">from</span> <span class="nn">sklearn.neighbors</span> <span class="kn">import</span> <span class="n">NearestNeighbors</span>
+
+<span class="kn">from</span> <span class="nn">._n_sphere</span> <span class="kn">import</span> <span class="n">NSphere</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;Contour&quot;</span><span class="p">,</span> <span class="s2">&quot;IFormContour&quot;</span><span class="p">,</span> <span class="s2">&quot;ISormContour&quot;</span><span class="p">,</span> <span class="s2">&quot;DirectSamplingContour&quot;</span><span class="p">,</span>
+           <span class="s2">&quot;HighestDensityContour&quot;</span><span class="p">,</span> <span class="s2">&quot;sort_points_to_form_continous_line&quot;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="Contour"><a class="viewcode-back" href="../../api/contours.html#viroconcom.contours.Contour">[docs]</a><span class="k">class</span> <span class="nc">Contour</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Abstract base class for contours.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    distribution : MultivariateDistribution</span>
+<span class="sd">        The distribution to calculate the contour of.</span>
+<span class="sd">    coordinates : list of lists of ndarrays</span>
+<span class="sd">        Contains the coordinates of points on the contour.</span>
+<span class="sd">        If the distribution is unimodal the outer list contains only one element,</span>
+<span class="sd">        else the outer list divides possible multiple contour parts.</span>
+<span class="sd">        The inner list contains multiple numpy arrays of the same length, one per dimension.</span>
+<span class="sd">        The values of the arrays are the coordinates in the corresponding dimension.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="Contour.__init__"><a class="viewcode-back" href="../../api/contours.html#viroconcom.contours.Contour.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mul_var_distribution</span><span class="p">,</span> <span class="n">return_period</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">state_duration</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+                 <span class="n">timeout</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        mul_var_distribution : MultivariateDistribution</span>
+<span class="sd">            The distribution to be used to calculate the contour.</span>
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        TimeoutError</span>
+<span class="sd">            If the calculation takes too long and the given value for timeout is exceeded.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span> <span class="o">=</span> <span class="n">mul_var_distribution</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">state_duration</span> <span class="o">=</span> <span class="n">state_duration</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">return_period</span> <span class="o">=</span> <span class="n">return_period</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">alpha</span> <span class="o">=</span> <span class="n">state_duration</span> <span class="o">/</span> <span class="p">(</span><span class="n">return_period</span> <span class="o">*</span> <span class="mf">365.25</span> <span class="o">*</span> <span class="mi">24</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">timeout</span><span class="p">:</span>
+            <span class="c1"># Use multiprocessing to define a timeout</span>
+            <span class="n">pool</span> <span class="o">=</span> <span class="n">Pool</span><span class="p">(</span><span class="n">processes</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="n">pool</span><span class="o">.</span><span class="n">apply_async</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_setup</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">computed</span> <span class="o">=</span> <span class="n">res</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">TimeoutError</span><span class="p">:</span>
+                <span class="n">err_msg</span> <span class="o">=</span> <span class="s2">&quot;The calculation takes too long. &quot;</span> \
+                          <span class="s2">&quot;It takes longer than the given value for&quot;</span> \
+                          <span class="s2">&quot; a timeout, which is &#39;</span><span class="si">{}</span><span class="s2"> seconds&#39;.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">timeout</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">TimeoutError</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
+            <span class="c1"># Save the results separated</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_save</span><span class="p">(</span><span class="n">computed</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">computed</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_setup</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_save</span><span class="p">(</span><span class="n">computed</span><span class="p">)</span></div>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">_setup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Calculate the contours coordinates.&quot;&quot;&quot;</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">_save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">computed</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Save the contours coordinates.&quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="IFormContour"><a class="viewcode-back" href="../../api/contours.html#viroconcom.contours.IFormContour">[docs]</a><span class="k">class</span> <span class="nc">IFormContour</span><span class="p">(</span><span class="n">Contour</span><span class="p">):</span>
+<div class="viewcode-block" id="IFormContour.__init__"><a class="viewcode-back" href="../../api/contours.html#viroconcom.contours.IFormContour.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mul_var_distribution</span><span class="p">,</span> <span class="n">return_period</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">state_duration</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+                 <span class="n">n_points</span><span class="o">=</span><span class="mi">180</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Contour based on the inverse first-order reliability method.</span>
+
+<span class="sd">        This method was proposed by Winterstein et al. (1993).</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        mul_var_distribution : MultivariateDistribution</span>
+<span class="sd">            The distribution to be used to calculate the contour.</span>
+<span class="sd">        return_period : float, optional</span>
+<span class="sd">            The years to consider for calculation. Defaults to 50.</span>
+<span class="sd">        state_duration : float, optional</span>
+<span class="sd">            Time period for which an environmental state is measured,</span>
+<span class="sd">            expressed in hours. Defaults to 3.</span>
+<span class="sd">        n_points : int, optional</span>
+<span class="sd">            Number of points on the contour. Defaults to 180.</span>
+<span class="sd">        timeout : int, optional</span>
+<span class="sd">            The maximum time in seconds there the contour has to be computed.</span>
+<span class="sd">            This parameter also controls multiprocessing. If timeout is None</span>
+<span class="sd">            serial processing is performed, if it is not None multiprocessing</span>
+<span class="sd">            is used. Defaults to None.</span>
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        TimeoutError,</span>
+<span class="sd">            If the calculation takes too long and the given value for timeout is exceeded.</span>
+
+<span class="sd">        example</span>
+<span class="sd">        -------</span>
+
+<span class="sd">        &gt;&gt;&gt; from viroconcom.distributions import (WeibullDistribution,\</span>
+<span class="sd">                                               LognormalDistribution,\</span>
+<span class="sd">                                               MultivariateDistribution)</span>
+<span class="sd">        &gt;&gt;&gt; from viroconcom.params import ConstantParam, FunctionParam</span>
+<span class="sd">        &gt;&gt;&gt; #Define dependency tuple</span>
+<span class="sd">        &gt;&gt;&gt; dep1 = (None, None, None)</span>
+<span class="sd">        &gt;&gt;&gt; dep2 = (0, None, 0)</span>
+<span class="sd">        &gt;&gt;&gt; #Define parameters</span>
+<span class="sd">        &gt;&gt;&gt; shape = ConstantParam(1.471)</span>
+<span class="sd">        &gt;&gt;&gt; loc = ConstantParam(0.8888)</span>
+<span class="sd">        &gt;&gt;&gt; scale = ConstantParam(2.776)</span>
+<span class="sd">        &gt;&gt;&gt; par1 = (shape, loc, scale)</span>
+<span class="sd">        &gt;&gt;&gt; mu = FunctionParam(&#39;power3&#39;, 0.1000, 1.489, 0.1901)</span>
+<span class="sd">        &gt;&gt;&gt; sigma = FunctionParam(&#39;exp3&#39;, 0.0400, 0.1748, -0.2243)</span>
+<span class="sd">        &gt;&gt;&gt; #Create distributions</span>
+<span class="sd">        &gt;&gt;&gt; dist1 = WeibullDistribution(*par1)</span>
+<span class="sd">        &gt;&gt;&gt; dist2 = LognormalDistribution(mu=mu, sigma=sigma)</span>
+<span class="sd">        &gt;&gt;&gt; distributions = [dist1, dist2]</span>
+<span class="sd">        &gt;&gt;&gt; dependencies = [dep1, dep2]</span>
+<span class="sd">        &gt;&gt;&gt; mul_dist = MultivariateDistribution(distributions, dependencies)</span>
+<span class="sd">        &gt;&gt;&gt; test_contour_iform = IFormContour(mul_dist, 50, 3, 400)</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Calls _setup</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">mul_var_distribution</span><span class="p">,</span> <span class="n">return_period</span><span class="p">,</span> <span class="n">state_duration</span><span class="p">,</span> <span class="n">timeout</span><span class="p">,</span> <span class="n">n_points</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_setup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n_points</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculates coordinates using IFORM.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        n_points : int</span>
+<span class="sd">            Number of points the shape contains.</span>
+<span class="sd">        return_period : float</span>
+<span class="sd">            The years to consider for calculation. Defaults to 50.</span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple of objects</span>
+<span class="sd">            The computed results.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Creates list with size that equals grade of dimensions used</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="o">.</span><span class="n">n_dim</span>
+
+        <span class="n">distributions</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="o">.</span><span class="n">distributions</span>
+
+        <span class="n">beta</span> <span class="o">=</span> <span class="n">sts</span><span class="o">.</span><span class="n">norm</span><span class="o">.</span><span class="n">ppf</span><span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha</span><span class="p">)</span>
+
+        <span class="c1"># Create sphere</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="o">.</span><span class="n">n_dim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">_phi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="p">,</span> <span class="n">num</span><span class="o">=</span><span class="n">n_points</span><span class="p">,</span> <span class="n">endpoint</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="n">_x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">_phi</span><span class="p">)</span>
+            <span class="n">_y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">_phi</span><span class="p">)</span>
+            <span class="n">_circle</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">((</span><span class="n">_x</span><span class="p">,</span><span class="n">_y</span><span class="p">))</span><span class="o">.</span><span class="n">T</span>
+            <span class="n">sphere_points</span> <span class="o">=</span> <span class="n">beta</span> <span class="o">*</span> <span class="n">_circle</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">sphere</span> <span class="o">=</span> <span class="n">NSphere</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="o">.</span><span class="n">n_dim</span><span class="p">,</span> <span class="n">n_samples</span><span class="o">=</span><span class="n">n_points</span><span class="p">)</span>
+            <span class="n">sphere_points</span> <span class="o">=</span> <span class="n">beta</span> <span class="o">*</span> <span class="n">sphere</span><span class="o">.</span><span class="n">unit_sphere_points</span>
+
+        <span class="c1"># Get probabilities for coordinates of shape</span>
+        <span class="n">norm_cdf_per_dimension</span> <span class="o">=</span> <span class="p">[</span><span class="n">sts</span><span class="o">.</span><span class="n">norm</span><span class="o">.</span><span class="n">cdf</span><span class="p">(</span><span class="n">sphere_points</span><span class="p">[:,</span> <span class="n">dim</span><span class="p">])</span>
+                               <span class="k">for</span> <span class="n">dim</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="o">.</span><span class="n">n_dim</span><span class="p">)]</span>
+
+        <span class="c1"># Inverse procedure. Get coordinates from probabilities.</span>
+        <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">distribution</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">distributions</span><span class="p">):</span>
+            <span class="n">data</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="n">distribution</span><span class="o">.</span><span class="n">i_cdf</span><span class="p">(</span><span class="n">norm_cdf_per_dimension</span><span class="p">[</span><span class="n">index</span><span class="p">],</span> <span class="n">rv_values</span><span class="o">=</span><span class="n">data</span><span class="p">,</span>
+                                             <span class="n">dependencies</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="o">.</span><span class="n">dependencies</span><span class="p">[</span><span class="n">index</span><span class="p">])</span>
+
+        <span class="n">coordinates</span> <span class="o">=</span> <span class="n">data</span>
+
+        <span class="k">return</span> <span class="p">(</span><span class="n">beta</span><span class="p">,</span> <span class="n">sphere_points</span><span class="p">,</span> <span class="n">coordinates</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">computed</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Save the computed parameters.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        computed : tuple of objects</span>
+<span class="sd">            The computed results to be saved.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">beta</span> <span class="o">=</span> <span class="n">computed</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sphere_points</span> <span class="o">=</span> <span class="n">computed</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span> <span class="o">=</span> <span class="n">computed</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="ISormContour"><a class="viewcode-back" href="../../api/contours.html#viroconcom.contours.ISormContour">[docs]</a><span class="k">class</span> <span class="nc">ISormContour</span><span class="p">(</span><span class="n">Contour</span><span class="p">):</span>
+<div class="viewcode-block" id="ISormContour.__init__"><a class="viewcode-back" href="../../api/contours.html#viroconcom.contours.ISormContour.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mul_var_distribution</span><span class="p">,</span> <span class="n">return_period</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">state_duration</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+                 <span class="n">n_points</span><span class="o">=</span><span class="mi">180</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Contour based on the inverse second-order reliability method.</span>
+
+<span class="sd">        This method was proposed by Chai and Leira (2018). The paper&#39;s DOI</span>
+<span class="sd">        is 10.1016/j.marstruc.2018.03.007 .</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        mul_var_distribution : MultivariateDistribution</span>
+<span class="sd">            The distribution to be used to calculate the contour.</span>
+<span class="sd">        return_period : float, optional</span>
+<span class="sd">            The years to consider for calculation. Defaults to 50.</span>
+<span class="sd">        state_duration : float, optional</span>
+<span class="sd">            Time period for which an environmental state is measured,</span>
+<span class="sd">            expressed in hours. Defaults to 3.</span>
+<span class="sd">        n_points : int, optional</span>
+<span class="sd">            Number of points on the contour. Defaults to 180.</span>
+<span class="sd">        timeout : int, optional</span>
+<span class="sd">            The maximum time in seconds there the contour has to be computed.</span>
+<span class="sd">            This parameter also controls multiprocessing. If timeout is None</span>
+<span class="sd">            serial processing is performed, if it is not None multiprocessing</span>
+<span class="sd">            is used. Defaults to None.</span>
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        TimeoutError,</span>
+<span class="sd">            If the calculation takes too long and the given value for timeout is exceeded.</span>
+
+<span class="sd">        example</span>
+<span class="sd">        -------</span>
+
+<span class="sd">        &gt;&gt;&gt; from viroconcom.distributions import (WeibullDistribution,\</span>
+<span class="sd">                                               LognormalDistribution,\</span>
+<span class="sd">                                               MultivariateDistribution)</span>
+<span class="sd">        &gt;&gt;&gt; from viroconcom.params import ConstantParam, FunctionParam</span>
+<span class="sd">        &gt;&gt;&gt; #Define dependency tuple</span>
+<span class="sd">        &gt;&gt;&gt; dep1 = (None, None, None)</span>
+<span class="sd">        &gt;&gt;&gt; dep2 = (0, None, 0)</span>
+<span class="sd">        &gt;&gt;&gt; #Define parameters</span>
+<span class="sd">        &gt;&gt;&gt; shape = ConstantParam(1.471)</span>
+<span class="sd">        &gt;&gt;&gt; loc = ConstantParam(0.8888)</span>
+<span class="sd">        &gt;&gt;&gt; scale = ConstantParam(2.776)</span>
+<span class="sd">        &gt;&gt;&gt; par1 = (shape, loc, scale)</span>
+<span class="sd">        &gt;&gt;&gt; mu = FunctionParam(&#39;power3&#39;, 0.1000, 1.489, 0.1901)</span>
+<span class="sd">        &gt;&gt;&gt; sigma = FunctionParam(&#39;exp3&#39;, 0.0400, 0.1748, -0.2243)</span>
+<span class="sd">        &gt;&gt;&gt; #Create distributions</span>
+<span class="sd">        &gt;&gt;&gt; dist1 = WeibullDistribution(*par1)</span>
+<span class="sd">        &gt;&gt;&gt; dist2 = LognormalDistribution(mu=mu, sigma=sigma)</span>
+<span class="sd">        &gt;&gt;&gt; distributions = [dist1, dist2]</span>
+<span class="sd">        &gt;&gt;&gt; dependencies = [dep1, dep2]</span>
+<span class="sd">        &gt;&gt;&gt; mul_dist = MultivariateDistribution(distributions, dependencies)</span>
+<span class="sd">        &gt;&gt;&gt; test_contour_isorm = ISormContour(mul_dist, 50, 3, 400)</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Calls _setup</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">mul_var_distribution</span><span class="p">,</span> <span class="n">return_period</span><span class="p">,</span> <span class="n">state_duration</span><span class="p">,</span> <span class="n">timeout</span><span class="p">,</span> <span class="n">n_points</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_setup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n_points</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculates coordinates using ISORM.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        n_points : int</span>
+<span class="sd">            Number of points the shape contains.</span>
+<span class="sd">        return_period : float</span>
+<span class="sd">            The years to consider for calculation. Defaults to 50.</span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple of objects</span>
+<span class="sd">            The computed results.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Creates list with size that equals grade of dimensions used.</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="o">.</span><span class="n">n_dim</span>
+
+        <span class="n">distributions</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="o">.</span><span class="n">distributions</span>
+
+        <span class="c1"># Use the ICDF of a chi-squared distribution with n dimensions. For</span>
+        <span class="c1"># reference see equation 20 in Chai and Leira (2018).</span>
+        <span class="n">beta</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">sts</span><span class="o">.</span><span class="n">chi2</span><span class="o">.</span><span class="n">ppf</span><span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="o">.</span><span class="n">n_dim</span><span class="p">))</span>
+
+        <span class="c1"># Create sphere.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="o">.</span><span class="n">n_dim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">_phi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="p">,</span> <span class="n">num</span><span class="o">=</span><span class="n">n_points</span><span class="p">,</span> <span class="n">endpoint</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="n">_x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">_phi</span><span class="p">)</span>
+            <span class="n">_y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">_phi</span><span class="p">)</span>
+            <span class="n">_circle</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">((</span><span class="n">_x</span><span class="p">,</span><span class="n">_y</span><span class="p">))</span><span class="o">.</span><span class="n">T</span>
+            <span class="n">sphere_points</span> <span class="o">=</span> <span class="n">beta</span> <span class="o">*</span> <span class="n">_circle</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">sphere</span> <span class="o">=</span> <span class="n">NSphere</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="o">.</span><span class="n">n_dim</span><span class="p">,</span> <span class="n">n_samples</span><span class="o">=</span><span class="n">n_points</span><span class="p">)</span>
+            <span class="n">sphere_points</span> <span class="o">=</span> <span class="n">beta</span> <span class="o">*</span> <span class="n">sphere</span><span class="o">.</span><span class="n">unit_sphere_points</span>
+
+        <span class="c1"># Get probabilities for coordinates of shape.</span>
+        <span class="n">norm_cdf_per_dimension</span> <span class="o">=</span> <span class="p">[</span><span class="n">sts</span><span class="o">.</span><span class="n">norm</span><span class="o">.</span><span class="n">cdf</span><span class="p">(</span><span class="n">sphere_points</span><span class="p">[:,</span> <span class="n">dim</span><span class="p">])</span>
+                               <span class="k">for</span> <span class="n">dim</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="o">.</span><span class="n">n_dim</span><span class="p">)]</span>
+
+        <span class="c1"># Inverse procedure. Get coordinates from probabilities.</span>
+        <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">distribution</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">distributions</span><span class="p">):</span>
+            <span class="n">data</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="n">distribution</span><span class="o">.</span><span class="n">i_cdf</span><span class="p">(</span><span class="n">norm_cdf_per_dimension</span><span class="p">[</span><span class="n">index</span><span class="p">],</span> <span class="n">rv_values</span><span class="o">=</span><span class="n">data</span><span class="p">,</span>
+                                             <span class="n">dependencies</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="o">.</span><span class="n">dependencies</span><span class="p">[</span><span class="n">index</span><span class="p">])</span>
+
+        <span class="n">coordinates</span> <span class="o">=</span> <span class="n">data</span>
+
+        <span class="k">return</span> <span class="p">(</span><span class="n">beta</span><span class="p">,</span> <span class="n">sphere_points</span><span class="p">,</span> <span class="n">coordinates</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">computed</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Save the computed parameters.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        computed : tuple of objects</span>
+<span class="sd">            The computed results to be saved.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">beta</span> <span class="o">=</span> <span class="n">computed</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sphere_points</span> <span class="o">=</span> <span class="n">computed</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span> <span class="o">=</span> <span class="n">computed</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="DirectSamplingContour"><a class="viewcode-back" href="../../api/contours.html#viroconcom.contours.DirectSamplingContour">[docs]</a><span class="k">class</span> <span class="nc">DirectSamplingContour</span><span class="p">(</span><span class="n">Contour</span><span class="p">):</span>
+<div class="viewcode-block" id="DirectSamplingContour.__init__"><a class="viewcode-back" href="../../api/contours.html#viroconcom.contours.DirectSamplingContour.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mul_var_dist</span><span class="p">,</span> <span class="n">return_period</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">state_duration</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+                 <span class="n">n</span><span class="o">=</span><span class="mi">100000</span><span class="p">,</span> <span class="n">deg_step</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">sample</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Drect sampling contour as introduced by Huseby et al. (2013), see</span>
+<span class="sd">        doi.org/10.1016/j.oceaneng.2012.12.034 .</span>
+
+<span class="sd">        This implementation only works for two-dimensional distributions.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        mul_var_dist : MultivariateDistribution</span>
+<span class="sd">            Must be 2-dimensional.</span>
+<span class="sd">        return_period : int, optional</span>
+<span class="sd">            Return period given in years. Defaults to 1.</span>
+<span class="sd">        state_duration : int, optional</span>
+<span class="sd">            Time period for which an environmental state is measured,</span>
+<span class="sd">            expressed in hours. Defaults to 3.</span>
+<span class="sd">        n : int, optional</span>
+<span class="sd">            Number of data points that shall be Monte Carlo simulated.</span>
+<span class="sd">        deg_step : float, optional</span>
+<span class="sd">            Directional step in degrees. Defaults to 5.</span>
+<span class="sd">        sample : 2-dimensional ndarray, optional</span>
+<span class="sd">            Monte Carlo simulated environmental states. Array is of shape (d, n)</span>
+<span class="sd">            with d being the number of variables and n being the number of</span>
+<span class="sd">            observations.</span>
+<span class="sd">        timeout : int, optional</span>
+<span class="sd">            The maximum time in seconds there the contour has to be computed.</span>
+<span class="sd">            This parameter also controls multiprocessing. If timeout is None</span>
+<span class="sd">            serial processing is performed, if it is not None multiprocessing</span>
+<span class="sd">            is used. Defaults to None.</span>
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        TimeoutError,</span>
+<span class="sd">            If the calculation takes too long and the given value for timeout is exceeded.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Call _setup .</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">mul_var_dist</span><span class="p">,</span> <span class="n">return_period</span><span class="p">,</span> <span class="n">state_duration</span><span class="p">,</span> <span class="n">timeout</span><span class="p">,</span>
+                         <span class="n">n</span><span class="p">,</span> <span class="n">deg_step</span><span class="p">,</span> <span class="n">sample</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_setup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">deg_step</span><span class="p">,</span> <span class="n">sample</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculates the coordinates of the DS contour.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        n : int</span>
+<span class="sd">            Number of data points that shall be Monte Carlo simulated.</span>
+<span class="sd">        deg_step : float</span>
+<span class="sd">            Directional step in degrees.</span>
+<span class="sd">        sample : 2-dimensional ndarray, optional</span>
+<span class="sd">            Array is of shape (d, n) with d being the number of variables and</span>
+<span class="sd">            n being the number of observations.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple of objects</span>
+<span class="sd">            The computed results (sample, contour coordinates).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="o">.</span><span class="n">n_dim</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;DirectSamplingContour is currently only &quot;</span>
+                                      <span class="s2">&quot;implemented for two dimensions.&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">sample</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">sample</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="o">.</span><span class="n">draw_sample</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">sample</span>
+
+        <span class="c1"># Calculate non-exceedance probability.</span>
+        <span class="n">alpha</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">-</span> <span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">return_period</span> <span class="o">*</span> <span class="mf">365.25</span> <span class="o">*</span> <span class="mi">24</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">state_duration</span><span class="p">))</span>
+
+        <span class="c1"># Define the angles such the coordinates[0] and coordinates[1] will</span>
+        <span class="c1"># be based on the exceedance plane with angle 0 deg, with 0 deg being</span>
+        <span class="c1"># along the x-axis. Angles will increase counterclockwise in a xy-plot.</span>
+        <span class="c1"># Not enirely sure why the + 2*rad_step is required, but tests show it.</span>
+        <span class="n">rad_step</span> <span class="o">=</span> <span class="n">deg_step</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">180</span>
+        <span class="n">angles</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">rad_step</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.5</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">+</span> <span class="n">rad_step</span><span class="p">,</span>
+                           <span class="o">-</span><span class="mi">1</span> <span class="o">*</span> <span class="n">rad_step</span><span class="p">)</span>
+
+        <span class="n">length_t</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">angles</span><span class="p">)</span>
+        <span class="n">r</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">length_t</span><span class="p">)</span>
+
+        <span class="c1"># Find radius for each angle.</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">while</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">length_t</span><span class="p">:</span>
+            <span class="n">z</span> <span class="o">=</span> <span class="n">x</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">angles</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">+</span> <span class="n">y</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">angles</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+            <span class="n">r</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">quantile</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">alpha</span><span class="p">)</span>
+            <span class="n">i</span> <span class="o">=</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span>
+
+        <span class="c1"># Find intersection of lines.</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">angles</span><span class="p">,</span> <span class="p">[</span><span class="n">angles</span><span class="p">[</span><span class="mi">0</span><span class="p">]]),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
+        <span class="n">r</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">r</span><span class="p">,</span> <span class="p">[</span><span class="n">r</span><span class="p">[</span><span class="mi">0</span><span class="p">]]),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
+
+        <span class="n">denominator</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="mi">2</span><span class="p">:])</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">-</span> \
+                      <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="mi">2</span><span class="p">:])</span>
+
+        <span class="n">x_cont</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="mi">2</span><span class="p">:])</span> <span class="o">*</span> <span class="n">r</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="nb">len</span><span class="p">(</span><span class="n">r</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+                  <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">*</span> <span class="n">r</span><span class="p">[</span><span class="mi">2</span><span class="p">:])</span> <span class="o">/</span> <span class="n">denominator</span>
+        <span class="n">y_cont</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="mi">2</span><span class="p">:])</span> <span class="o">*</span> <span class="n">r</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="nb">len</span><span class="p">(</span><span class="n">r</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+                  <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">*</span> <span class="n">r</span><span class="p">[</span><span class="mi">2</span><span class="p">:])</span> <span class="o">/</span> <span class="n">denominator</span>
+
+        <span class="n">coordinates</span> <span class="o">=</span> <span class="p">[</span><span class="n">x_cont</span><span class="p">,</span> <span class="n">y_cont</span><span class="p">]</span>
+
+
+        <span class="k">return</span> <span class="p">(</span><span class="n">sample</span><span class="p">,</span> <span class="n">coordinates</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">computed</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Save the computed parameters.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        computed : tuple of objects</span>
+<span class="sd">            The computed results to be saved (sample, contour coordinates).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sample</span> <span class="o">=</span> <span class="n">computed</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span> <span class="o">=</span> <span class="n">computed</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="HighestDensityContour"><a class="viewcode-back" href="../../api/contours.html#viroconcom.contours.HighestDensityContour">[docs]</a><span class="k">class</span> <span class="nc">HighestDensityContour</span><span class="p">(</span><span class="n">Contour</span><span class="p">):</span>
+<div class="viewcode-block" id="HighestDensityContour.__init__"><a class="viewcode-back" href="../../api/contours.html#viroconcom.contours.HighestDensityContour.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mul_var_distribution</span><span class="p">,</span> <span class="n">return_period</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">state_duration</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+                 <span class="n">limits</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">deltas</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Contour based on highest density contour method.</span>
+
+<span class="sd">        This method was proposed by Haselsteiner et al. (2017). The paper&#39;s</span>
+<span class="sd">        DOI is 10.1016/j.coastaleng.2017.03.002 .</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        mul_var_distribution : MultivariateDistribution</span>
+<span class="sd">            The distribution to be used to calculate the contour.</span>
+<span class="sd">        return_period : float, optional</span>
+<span class="sd">            The years to consider for calculation. Defaults to 50.</span>
+<span class="sd">        state_duration : float, optional</span>
+<span class="sd">            Time period for which a (environmental) state is measured, expressed in hours.</span>
+<span class="sd">            Defaults to 3.</span>
+<span class="sd">        limits : list of tuples, optional</span>
+<span class="sd">            One 2-Element tuple per dimension in mul_var_distribution,</span>
+<span class="sd">            containing min and max limits for calculation. ((min, max)).</span>
+<span class="sd">            Smaller value is always assumed minimum. Defaults to list of (0, 10)</span>
+<span class="sd">        deltas : float or list of float, optional</span>
+<span class="sd">            The grid stepsize used for calculation.</span>
+<span class="sd">            If a single float is supplied it is used for all dimensions.</span>
+<span class="sd">            If a list of float is supplied it has to be of the same length</span>
+<span class="sd">            as there are dimensions in mul_var_dist.</span>
+<span class="sd">            Defaults to 0.5.</span>
+<span class="sd">        timeout : int, optional</span>
+<span class="sd">            The maximum time in seconds there the contour has to be computed.</span>
+<span class="sd">            This parameter also controls multiprocessing. If timeout is None</span>
+<span class="sd">            serial processing is performed, if it is not None multiprocessing</span>
+<span class="sd">            is used. Defaults to None.</span>
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        TimeoutError,</span>
+<span class="sd">            If the calculation takes too long and the given value for timeout is exceeded.</span>
+
+<span class="sd">        example</span>
+<span class="sd">        -------</span>
+
+<span class="sd">        Creating contour example for 2-d HDC with Weibull and Lognormal</span>
+<span class="sd">        distribution</span>
+
+<span class="sd">        &gt;&gt;&gt; from viroconcom.distributions import (WeibullDistribution,\</span>
+<span class="sd">                                               LognormalDistribution,\</span>
+<span class="sd">                                               MultivariateDistribution)</span>
+<span class="sd">        &gt;&gt;&gt; from viroconcom.params import ConstantParam, FunctionParam</span>
+<span class="sd">        &gt;&gt;&gt; #Define dependency tuple</span>
+<span class="sd">        &gt;&gt;&gt; dep1 = (None, None, None)</span>
+<span class="sd">        &gt;&gt;&gt; dep2 = (0, None, 0)</span>
+<span class="sd">        &gt;&gt;&gt; #Define parameters</span>
+<span class="sd">        &gt;&gt;&gt; shape = ConstantParam(1.471)</span>
+<span class="sd">        &gt;&gt;&gt; loc = ConstantParam(0.8888)</span>
+<span class="sd">        &gt;&gt;&gt; scale = ConstantParam(2.776)</span>
+<span class="sd">        &gt;&gt;&gt; par1 = (shape, loc, scale)</span>
+<span class="sd">        &gt;&gt;&gt; mu = FunctionParam(&#39;power3&#39;, 0.1000, 1.489, 0.1901)</span>
+<span class="sd">        &gt;&gt;&gt; sigma = FunctionParam(&#39;exp3&#39;, 0.0400, 0.1748, -0.2243)</span>
+<span class="sd">        &gt;&gt;&gt; #Create distributions</span>
+<span class="sd">        &gt;&gt;&gt; dist1 = WeibullDistribution(*par1)</span>
+<span class="sd">        &gt;&gt;&gt; dist2 = LognormalDistribution(mu=mu, sigma=sigma)</span>
+<span class="sd">        &gt;&gt;&gt; distributions = [dist1, dist2]</span>
+<span class="sd">        &gt;&gt;&gt; dependencies = [dep1, dep2]</span>
+<span class="sd">        &gt;&gt;&gt; mul_dist = MultivariateDistribution(distributions, dependencies)</span>
+<span class="sd">        &gt;&gt;&gt; #Calculate contour</span>
+<span class="sd">        &gt;&gt;&gt; n_years = 50</span>
+<span class="sd">        &gt;&gt;&gt; limits = [(0, 20), (0, 18)]</span>
+<span class="sd">        &gt;&gt;&gt; deltas = [0.1, 0.1]</span>
+<span class="sd">        &gt;&gt;&gt; test_contour_HDC = HighestDensityContour(mul_dist, n_years, 3,\</span>
+<span class="sd">                                                     limits, deltas)</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># calls _setup</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">mul_var_distribution</span><span class="p">,</span> <span class="n">return_period</span><span class="p">,</span> <span class="n">state_duration</span><span class="p">,</span>
+                         <span class="n">timeout</span><span class="p">,</span> <span class="n">limits</span><span class="p">,</span> <span class="n">deltas</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_setup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">limits</span><span class="p">,</span> <span class="n">deltas</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculate coordinates using highest density method.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        limits : list of tuples</span>
+<span class="sd">            One 2-Element tuple per dimension in mul_var_distribution,</span>
+<span class="sd">            containing min and max limits for calculation. ((min, max)).</span>
+<span class="sd">            Smaller value is always assumed minimum.</span>
+<span class="sd">        deltas : scalar or list of scalar</span>
+<span class="sd">            The grid stepsize used for calculation.</span>
+<span class="sd">            If a single float is supplied it is used for all dimensions.</span>
+<span class="sd">            If a list of float is supplied it has to be of the same length</span>
+<span class="sd">            as there are dimensions in mul_var_dist.</span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple of objects,</span>
+<span class="sd">            The computed results.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">n_dim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="o">.</span><span class="n">n_dim</span>
+        <span class="k">if</span> <span class="n">limits</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">limits</span> <span class="o">=</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">)]</span> <span class="o">*</span> <span class="n">n_dim</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_dim</span><span class="p">):</span>
+                <span class="c1"># This calculation is based on the relationship for an ISORM</span>
+                <span class="c1"># contour, see Mackay and Haselsteiner (2020), Expression 12.</span>
+                <span class="n">alpha_t</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">return_period</span> <span class="o">*</span> <span class="mf">365.25</span> <span class="o">*</span> <span class="mi">24</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">state_duration</span><span class="p">)</span>
+                <span class="n">beta_Sn</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">sts</span><span class="o">.</span><span class="n">distributions</span><span class="o">.</span><span class="n">chi2</span><span class="o">.</span><span class="n">ppf</span><span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">alpha_t</span><span class="p">,</span> <span class="n">df</span><span class="o">=</span><span class="n">n_dim</span><span class="p">))</span>
+                <span class="n">alpha_m</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">-</span> <span class="n">sts</span><span class="o">.</span><span class="n">distributions</span><span class="o">.</span><span class="n">norm</span><span class="o">.</span><span class="n">cdf</span><span class="p">(</span><span class="n">beta_Sn</span><span class="p">)</span>
+                <span class="n">dist</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="o">.</span><span class="n">distributions</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                <span class="n">non_exeedance_p</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">alpha_m</span> <span class="o">*</span> <span class="mf">0.1</span>
+                <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="c1"># When implemented this should become self.distribution.marginal_icdf(non_exceedance_p, i)</span>
+                    <span class="n">limits</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">dist</span><span class="o">.</span><span class="n">i_cdf</span><span class="p">(</span><span class="n">non_exeedance_p</span><span class="p">))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># When implemented this should become self.distribution.marginal_icdf(non_exceedance_p, i)</span>
+                    <span class="n">limits</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">limits</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Check limits length.</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">limits</span><span class="p">)</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="o">.</span><span class="n">n_dim</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;limits has to be of length equal to number of dimensions, &quot;</span>
+                                 <span class="s2">&quot;but len(limits)=</span><span class="si">{}</span><span class="s2">, n_dim=</span><span class="si">{}</span><span class="s2">.&quot;</span>
+                                 <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">limits</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="o">.</span><span class="n">n_dim</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">deltas</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">deltas</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">n_dim</span><span class="p">)</span>
+            <span class="c1"># Set default cell size to 0.25 percent of the variable space.</span>
+            <span class="c1"># This is losely based on the results from Fig. 7 in 10.1016/j.coastaleng.2017.03.002</span>
+            <span class="c1"># In the considered variable space length of 20 a cell length of</span>
+            <span class="c1"># 0.05 was sufficient --&gt; 20 / 0.05 = 400. 1/400 = 0.0025</span>
+            <span class="n">relative_cell_size</span> <span class="o">=</span> <span class="mf">0.0025</span>
+
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_dim</span><span class="p">):</span>
+                <span class="n">deltas</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">limits</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">limits</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span> <span class="o">*</span> <span class="n">relative_cell_size</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Check if deltas is a scalar.</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="nb">iter</span><span class="p">(</span><span class="n">deltas</span><span class="p">)</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">deltas</span><span class="p">)</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="o">.</span><span class="n">n_dim</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;deltas has do be either scalar, &quot;</span>
+                                     <span class="s2">&quot;or list of length equal to number of dimensions, &quot;</span>
+                                     <span class="s2">&quot;but was list of length </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">deltas</span><span class="p">)))</span>
+                <span class="n">deltas</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">deltas</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                <span class="n">deltas</span> <span class="o">=</span> <span class="p">[</span><span class="n">deltas</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="o">.</span><span class="n">n_di</span>
+
+        <span class="c1"># Create sampling coordinate arrays.</span>
+        <span class="n">sample_coords</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">lim_tuple</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">limits</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="nb">iter</span><span class="p">(</span><span class="n">lim_tuple</span><span class="p">)</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">lim_tuple</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;tuples in limits have to be of length 2 ( = (min, max)), &quot;</span>
+                                <span class="s2">&quot;but tuple with index = </span><span class="si">{}</span><span class="s2">, has length = </span><span class="si">{}</span><span class="s2">.&quot;</span>
+                                 <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">lim_tuple</span><span class="p">)))</span>
+            <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;tuples in limits have to be of length 2 ( = (min, max)), &quot;</span>
+                                <span class="s2">&quot;but tuple with index = </span><span class="si">{}</span><span class="s2">, has length = 1.&quot;</span>
+                                 <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+
+            <span class="n">min_</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">lim_tuple</span><span class="p">)</span>
+            <span class="n">max_</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">lim_tuple</span><span class="p">)</span>
+            <span class="n">delta</span> <span class="o">=</span> <span class="n">deltas</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">min_</span><span class="p">,</span> <span class="n">max_</span><span class="o">+</span> <span class="n">delta</span><span class="p">,</span> <span class="n">delta</span><span class="p">)</span>
+            <span class="n">sample_coords</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+
+
+        <span class="n">f</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="o">.</span><span class="n">cell_averaged_joint_pdf</span><span class="p">(</span><span class="n">sample_coords</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">f</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Encountered nan in cell averaged probabilty joint pdf. &quot;</span>
+                             <span class="s2">&quot;Possibly invalid distribution parameters?&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Calculate probability per cell.</span>
+        <span class="n">cell_prob</span> <span class="o">=</span> <span class="n">f</span>
+        <span class="k">for</span> <span class="n">delta</span> <span class="ow">in</span> <span class="n">deltas</span><span class="p">:</span>
+            <span class="n">cell_prob</span> <span class="o">*=</span> <span class="n">delta</span>
+
+        <span class="c1"># Calculate highest density region.</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">with</span> <span class="n">warnings</span><span class="o">.</span><span class="n">catch_warnings</span><span class="p">():</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">simplefilter</span><span class="p">(</span><span class="s2">&quot;error&quot;</span><span class="p">)</span>
+                <span class="n">HDR</span><span class="p">,</span> <span class="n">prob_m</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cumsum_biggest_until</span><span class="p">(</span><span class="n">cell_prob</span><span class="p">,</span> <span class="mi">1</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">RuntimeWarning</span><span class="p">:</span>
+            <span class="n">HDR</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">cell_prob</span><span class="p">)</span>
+            <span class="n">prob_m</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;A probability of 1-alpha could not be reached. &quot;</span>
+                          <span class="s2">&quot;Consider enlarging the area defined by limits or &quot;</span>
+                          <span class="s2">&quot;setting n_years to a smaller value.&quot;</span><span class="p">,</span>
+                          <span class="ne">RuntimeWarning</span><span class="p">,</span> <span class="n">stacklevel</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+
+        <span class="c1"># Calculate fm from probability per cell.</span>
+        <span class="n">fm</span> <span class="o">=</span> <span class="n">prob_m</span>
+        <span class="k">for</span> <span class="n">delta</span> <span class="ow">in</span> <span class="n">deltas</span><span class="p">:</span>
+            <span class="n">fm</span> <span class="o">/=</span> <span class="n">delta</span>
+
+        <span class="n">structure</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">tuple</span><span class="p">([</span><span class="mi">3</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="o">.</span><span class="n">n_dim</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span>
+        <span class="n">HDC</span> <span class="o">=</span> <span class="n">HDR</span> <span class="o">-</span> <span class="n">ndi</span><span class="o">.</span><span class="n">binary_erosion</span><span class="p">(</span><span class="n">HDR</span><span class="p">,</span> <span class="n">structure</span><span class="o">=</span><span class="n">structure</span><span class="p">)</span>
+
+        <span class="n">labeled_array</span><span class="p">,</span> <span class="n">n_modes</span> <span class="o">=</span> <span class="n">ndi</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">HDC</span><span class="p">,</span> <span class="n">structure</span><span class="o">=</span><span class="n">structure</span><span class="p">)</span>
+
+        <span class="n">coordinates</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c1"># Iterate over all partial contours and start at 1.</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n_modes</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+            <span class="c1"># Array of arrays with same length, one per dimension</span>
+            <span class="c1"># containing the indice of the contour.</span>
+            <span class="n">partial_contour_indice</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">labeled_array</span> <span class="o">==</span> <span class="n">i</span><span class="p">)</span>
+
+            <span class="c1"># Calculate the values corresponding to the indice</span>
+            <span class="n">partial_coordinates</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">dimension</span><span class="p">,</span> <span class="n">indice</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">partial_contour_indice</span><span class="p">):</span>
+                <span class="n">partial_coordinates</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sample_coords</span><span class="p">[</span><span class="n">dimension</span><span class="p">][</span><span class="n">indice</span><span class="p">])</span>
+
+            <span class="n">coordinates</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">partial_coordinates</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">coordinates</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">coordinates</span> <span class="o">=</span> <span class="n">coordinates</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="p">(</span><span class="n">deltas</span><span class="p">,</span> <span class="n">limits</span><span class="p">,</span> <span class="n">sample_coords</span><span class="p">,</span> <span class="n">fm</span><span class="p">,</span> <span class="n">coordinates</span><span class="p">)</span>
+        
+    <span class="k">def</span> <span class="nf">_save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">computed</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Save the computed parameters.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        computed : tuple of objects,</span>
+<span class="sd">            The computed results to be saved.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">deltas</span> <span class="o">=</span> <span class="n">computed</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">limits</span> <span class="o">=</span> <span class="n">computed</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sample_coords</span> <span class="o">=</span> <span class="n">computed</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fm</span> <span class="o">=</span> <span class="n">computed</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span> <span class="o">=</span> <span class="n">computed</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span>
+
+<div class="viewcode-block" id="HighestDensityContour.cumsum_biggest_until"><a class="viewcode-back" href="../../api/contours.html#viroconcom.contours.HighestDensityContour.cumsum_biggest_until">[docs]</a>    <span class="k">def</span> <span class="nf">cumsum_biggest_until</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">array</span><span class="p">,</span> <span class="n">limit</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Find biggest elements to sum to reach limit.</span>
+
+<span class="sd">        Sorts array, and calculates the cumulative sum.</span>
+<span class="sd">        Returns a boolean array with the same shape as array indicating the</span>
+<span class="sd">        fields summed to reach limit, as well as the last value added.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        array : ndarray</span>
+<span class="sd">            Array of arbitrary shape with all values &gt;= 0.</span>
+<span class="sd">        limit : float</span>
+<span class="sd">            limit to sum up to.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        summed_fields : ndarray, dtype=Bool</span>
+<span class="sd">            Boolean array of shape like array with True if element was used in summation.</span>
+<span class="sd">        last_summed : float</span>
+<span class="sd">            Element that was added last to the sum.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If `array` contains nan.</span>
+<span class="sd">        Notes</span>
+<span class="sd">        ------</span>
+<span class="sd">        A ``RuntimeWarning`` is raised if the limit cannot be reached by summing all values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">flat_array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ravel</span><span class="p">(</span><span class="n">array</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">flat_array</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;array contains nan.&quot;</span><span class="p">)</span>
+
+        <span class="n">sort_inds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">flat_array</span><span class="p">,</span> <span class="n">kind</span><span class="o">=</span><span class="s2">&quot;mergesort&quot;</span><span class="p">)[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">sort_vals</span> <span class="o">=</span> <span class="n">flat_array</span><span class="p">[</span><span class="n">sort_inds</span><span class="p">]</span>
+
+        <span class="n">cum_sum</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">sort_vals</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">cum_sum</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">limit</span><span class="p">:</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;The limit could not be reached.&quot;</span><span class="p">,</span> <span class="ne">RuntimeWarning</span><span class="p">,</span> <span class="n">stacklevel</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="n">summed_flat_inds</span> <span class="o">=</span> <span class="n">sort_inds</span><span class="p">[</span><span class="n">cum_sum</span> <span class="o">&lt;=</span> <span class="n">limit</span><span class="p">]</span>
+
+        <span class="n">summed_fields</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">array</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+
+        <span class="n">summed_fields</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">unravel_index</span><span class="p">(</span><span class="n">summed_flat_inds</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">array</span><span class="o">.</span><span class="n">shape</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">1</span>
+
+        <span class="n">last_summed</span> <span class="o">=</span> <span class="n">array</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">unravel_index</span><span class="p">(</span><span class="n">summed_flat_inds</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">shape</span><span class="o">=</span><span class="n">array</span><span class="o">.</span><span class="n">shape</span><span class="p">)]</span>
+
+
+        <span class="k">return</span> <span class="n">summed_fields</span><span class="p">,</span> <span class="n">last_summed</span></div></div>
+
+
+<div class="viewcode-block" id="sort_points_to_form_continous_line"><a class="viewcode-back" href="../../api/contours.html#viroconcom.contours.sort_points_to_form_continous_line">[docs]</a><span class="k">def</span> <span class="nf">sort_points_to_form_continous_line</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">do_search_for_optimal_start</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Sorts contour points to form a a continous line / contour.</span>
+
+<span class="sd">    Thanks to https://stackoverflow.com/questions/37742358/sorting-points-to-</span>
+<span class="sd">    form-a-continuous-line/37744549#37744549</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    x : array_like</span>
+<span class="sd">    y : array_like</span>
+<span class="sd">    do_search_for_optimal_start : boolean, optional</span>
+<span class="sd">     If true, the algorithm also searches for the ideal starting node, see the</span>
+<span class="sd">     stackoverflow link for more info.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    sorted_points : tuple of array_like floats</span>
+<span class="sd">        The sorted points.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">points</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">c_</span><span class="p">[</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">]</span>
+    <span class="n">clf</span> <span class="o">=</span> <span class="n">NearestNeighbors</span><span class="p">(</span><span class="n">n_neighbors</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">points</span><span class="p">)</span>
+    <span class="n">G</span> <span class="o">=</span> <span class="n">clf</span><span class="o">.</span><span class="n">kneighbors_graph</span><span class="p">()</span>
+    <span class="n">T</span> <span class="o">=</span> <span class="n">nx</span><span class="o">.</span><span class="n">from_scipy_sparse_matrix</span><span class="p">(</span><span class="n">G</span><span class="p">)</span>
+    <span class="n">order</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">nx</span><span class="o">.</span><span class="n">dfs_preorder_nodes</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+
+    <span class="n">xx</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="n">order</span><span class="p">]</span>
+    <span class="n">yy</span> <span class="o">=</span> <span class="n">y</span><span class="p">[</span><span class="n">order</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">do_search_for_optimal_start</span><span class="p">:</span>
+        <span class="n">paths</span> <span class="o">=</span> <span class="p">[</span><span class="nb">list</span><span class="p">(</span><span class="n">nx</span><span class="o">.</span><span class="n">dfs_preorder_nodes</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">points</span><span class="p">))]</span>
+        <span class="n">mindist</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span>
+        <span class="n">minidx</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">points</span><span class="p">)):</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="n">paths</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>  <span class="c1"># Order of nodes.</span>
+            <span class="n">ordered</span> <span class="o">=</span> <span class="n">points</span><span class="p">[</span><span class="n">p</span><span class="p">]</span>  <span class="c1"># Ordered nodes.</span>
+            <span class="c1"># Find cost of that order by the sum of euclidean distances</span>
+            <span class="c1"># between points (i) and (i + 1).</span>
+            <span class="n">cost</span> <span class="o">=</span> <span class="p">(((</span><span class="n">ordered</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">ordered</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">cost</span> <span class="o">&lt;</span> <span class="n">mindist</span><span class="p">:</span>
+                <span class="n">mindist</span> <span class="o">=</span> <span class="n">cost</span>
+                <span class="n">minidx</span> <span class="o">=</span> <span class="n">i</span>
+
+        <span class="n">opt_order</span> <span class="o">=</span> <span class="n">paths</span><span class="p">[</span><span class="n">minidx</span><span class="p">]</span>
+
+        <span class="n">xx</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="n">opt_order</span><span class="p">]</span>
+        <span class="n">yy</span> <span class="o">=</span> <span class="n">y</span><span class="p">[</span><span class="n">opt_order</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="p">(</span><span class="n">xx</span><span class="p">,</span> <span class="n">yy</span><span class="p">)</span></div>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">doctest</span>
+    <span class="n">doctest</span><span class="o">.</span><span class="n">testmod</span><span class="p">()</span>
+
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, viroconcom.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 3.2.1.
+    </div>
+  </body>
+</html>

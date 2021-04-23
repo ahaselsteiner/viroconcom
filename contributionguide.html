@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Contribution Guide &#8212; viroconcom  documentation</title>
+    <link rel="stylesheet" href="_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
+    <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+    <script src="_static/sidebar.js"></script>
+    
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Reference" href="reference.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="_static/mini_logo.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+
+  </head><body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+        <li><a href="index.html">viroconcom  documentation</a> &#187;</li> 
+      </ul>
+    </div>
+    
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="contribution-guide">
+<h1>Contribution Guide<a class="headerlink" href="#contribution-guide" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="introduction">
+<h2>1. Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
+<p>This contribution guide focuses on the code style. Together with <em>PEP8</em>
+(van Rossum et al., 2001) and the <em>Guide of NumPy/SciPy Documentation</em>
+(Gommers et al, 2017) it describes the conventions to
+follow while designing the software viroconweb. The guide is supposed to
+help the developer to stick to a constant style and layout, which will
+make the code more readable. This style guide provides conventions and
+should not be seen as a dogma. If it serves the readability you can
+deviate from the given style.</p>
+</div>
+<div class="section" id="code-layout">
+<h2>2. Code Layout<a class="headerlink" href="#code-layout" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="indentation">
+<h3>2.1 Indentation<a class="headerlink" href="#indentation" title="Permalink to this headline">¶</a></h3>
+<p>Use four spaces to differ between two indention levels. Do not use tabs
+unless you need to be conform with code written by some other developer
+(Rossum, Warsaw, Coghlan, 2001).</p>
+</div>
+<div class="section" id="line-length">
+<h3>2.2 Line length<a class="headerlink" href="#line-length" title="Permalink to this headline">¶</a></h3>
+<p>The maximum length of a line should be 79 chars. Long lines of code can
+be broken up by a backslash. Further details are described in PEP8:
+<a class="reference external" href="https://www.python.org/dev/peps/pep-0008/#maximum-line-length">https://www.python.org/dev/peps/pep-0008/#maximum-line-length</a></p>
+</div>
+<div class="section" id="blank-lines">
+<h3>2.3 Blank Lines<a class="headerlink" href="#blank-lines" title="Permalink to this headline">¶</a></h3>
+<p>Use two blank lines before you define a new class and one blank line
+before method definitions. Blank lines can border a group of two
+functions which are related. You can use them to differ between logic
+paragraphs (Rossum, Warsaw, Coghlan, 2001).</p>
+</div>
+<div class="section" id="imports">
+<h3>2.4 Imports<a class="headerlink" href="#imports" title="Permalink to this headline">¶</a></h3>
+<p>Imports are located at the top of the document right behind docstrings
+and method comments. Use separate lines for every import (Rossum,
+Warsaw, Coghlan, 2001).</p>
+</div>
+</div>
+<div class="section" id="comments">
+<h2>3. Comments<a class="headerlink" href="#comments" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="block-comments">
+<h3>3.1 Block Comments<a class="headerlink" href="#block-comments" title="Permalink to this headline">¶</a></h3>
+<p>Block comments can describe either the whole following code or just a
+part of it. Every line starts with # followed by one space (Rossum,
+Warsaw, Coghlan, 2001).</p>
+</div>
+<div class="section" id="short-comments">
+<h3>3.2 Short Comments<a class="headerlink" href="#short-comments" title="Permalink to this headline">¶</a></h3>
+<p>Short comments can just be single words. They can be located between
+statements.</p>
+</div>
+<div class="section" id="docstrings">
+<h3>3.3 Docstrings<a class="headerlink" href="#docstrings" title="Permalink to this headline">¶</a></h3>
+<p>Functions, modules or classes can be extended by docstrings (Rossum,
+Warsaw, Coghlan, 2001). Like block comments, docstrings can be written
+over multiple lines. To differ between several sections write a header
+followed by a underline which is as long as the header. To end a section
+use two blank lines. To distinguish a section particularly use
+indentions. There are different sections of docstrings that can be used:</p>
+<div class="section" id="short-summary">
+<h4>3.3.1. Short Summary<a class="headerlink" href="#short-summary" title="Permalink to this headline">¶</a></h4>
+<p>Describes what is happening in just one line. Can also give information
+about returns (Gommers, 2017), e.g. Find biggest elements to sum to
+reach limit.</p>
+</div>
+<div class="section" id="extended-summary">
+<h4>3.3.2. Extended Summary<a class="headerlink" href="#extended-summary" title="Permalink to this headline">¶</a></h4>
+<p>Describe what happens in the section using whole sentences. You can use
+the parameters and function name to make sure the functionality is clear
+(Gommers, 2017), e.g. Sorts array, and calculates the cumulative sum.
+Returns a boolean array with the same shape as array indicating the
+fields summed to reach limit, as well as the last value added.</p>
+</div>
+<div class="section" id="parameters">
+<h4>3.3.3. Parameters<a class="headerlink" href="#parameters" title="Permalink to this headline">¶</a></h4>
+<p>To describe Parameters put variables into single back ticks. Surround
+the colon with single spaces or leave it when the type is not given.
+Always be accurate describing Parameters (Gommers, 2017), e.g.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">Parameters</span>
+<span class="s2">——————–</span>
+<span class="s2">x : type</span>
+<span class="s2">    Description of parameter `x`.</span>
+<span class="s2">y</span>
+<span class="s2">    Description of parameter `y` (with type not specified)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="returns">
+<h4>3.3.4. Returns<a class="headerlink" href="#returns" title="Permalink to this headline">¶</a></h4>
+<p>Like Parameters but every typ of the return needs to be mentioned
+(Gommers, 2017), e.g.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Returns</span>
+<span class="sd">————–</span>
+<span class="sd">summed_fields : ndarray, dtype=Bool</span>
+<span class="sd">    Boolean array of shape like  with True if element was used in summation.</span>
+<span class="sd">last_summed : float</span>
+<span class="sd">    Element that was added last to the sum.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="raises">
+<h4>3.3.5. Raises<a class="headerlink" href="#raises" title="Permalink to this headline">¶</a></h4>
+<p>Errors that may appear (Gommers, 2017), e.g.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Raises</span>
+<span class="sd">———–</span>
+<span class="sd">ValueError</span>
+<span class="sd">    If ‘array‘ contains nan.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="notes">
+<h4>3.3.6. Notes<a class="headerlink" href="#notes" title="Permalink to this headline">¶</a></h4>
+<p>In this section you can write extra information to the code. This may be
+critical statements or just comments (Gommers, 2017), e.g.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Notes</span>
+<span class="sd">———</span>
+<span class="sd">The following attributes/methods need to be initialised by child classes:</span>
+<span class="sd">    - name</span>
+<span class="sd">    - _scipy_cdf</span>
+<span class="sd">    - _scipy_i_cdf</span>
+<span class="sd">&quot;&quot;&quot;</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="section" id="tests">
+<h2>4. Tests<a class="headerlink" href="#tests" title="Permalink to this headline">¶</a></h2>
+<p>Make sure that after your contribution all tests still run successfully.
+To run the tests type</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">pytest</span>
+</pre></div>
+</div>
+<p>If you implement a new feature, write a new test, which
+covers the new feature.</p>
+</div>
+<div class="section" id="references">
+<h2>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
+<p>R. Gommers, endolith, chebee7i, T. Kluyver, P. de Buyl, C. Harris et al. (2017):
+A Guide to NumPy/SciPy Documentation.
+<a class="reference external" href="https://github.com/numpy/numpy/blob/maintenance/1.14.x/doc/HOWTO_DOCUMENT.rst.txt">https://github.com/numpy/numpy/blob/maintenance/1.14.x/doc/HOWTO_DOCUMENT.rst.txt</a>
+(last access: July 9th 2018)</p>
+<p>van Rossum, G.; Warsaw, B.; Coghlan, N. (2001): Style Guide for Python
+Code.https://www.python.org/dev/peps/pep-0008 (last access
+May 18th 2018)</p>
+</div>
+</div>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+
+  <h3><a href="index.html">Table of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Contribution Guide</a><ul>
+<li><a class="reference internal" href="#introduction">1. Introduction</a></li>
+<li><a class="reference internal" href="#code-layout">2. Code Layout</a><ul>
+<li><a class="reference internal" href="#indentation">2.1 Indentation</a></li>
+<li><a class="reference internal" href="#line-length">2.2 Line length</a></li>
+<li><a class="reference internal" href="#blank-lines">2.3 Blank Lines</a></li>
+<li><a class="reference internal" href="#imports">2.4 Imports</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#comments">3. Comments</a><ul>
+<li><a class="reference internal" href="#block-comments">3.1 Block Comments</a></li>
+<li><a class="reference internal" href="#short-comments">3.2 Short Comments</a></li>
+<li><a class="reference internal" href="#docstrings">3.3 Docstrings</a><ul>
+<li><a class="reference internal" href="#short-summary">3.3.1. Short Summary</a></li>
+<li><a class="reference internal" href="#extended-summary">3.3.2. Extended Summary</a></li>
+<li><a class="reference internal" href="#parameters">3.3.3. Parameters</a></li>
+<li><a class="reference internal" href="#returns">3.3.4. Returns</a></li>
+<li><a class="reference internal" href="#raises">3.3.5. Raises</a></li>
+<li><a class="reference internal" href="#notes">3.3.6. Notes</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a class="reference internal" href="#tests">4. Tests</a></li>
+<li><a class="reference internal" href="#references">References</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="reference.html"
+                        title="previous chapter">Reference</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/contributionguide.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="reference.html" title="Reference"
+             accesskey="P">previous</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, viroconcom.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 3.2.1.
+    </div>
+  </body>
+</html>

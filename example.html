@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Example: Sea state contour &#8212; viroconcom  documentation</title>
+    <link rel="stylesheet" href="_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
+    <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+    <script src="_static/sidebar.js"></script>
+    
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Overall work flow and software architecture" href="workflow.html" />
+    <link rel="prev" title="Installation" href="install.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="_static/mini_logo.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+
+  </head><body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+        <li><a href="index.html">viroconcom  documentation</a> &#187;</li>
+          <li><a href="user_guide.html" accesskey="U">User Guide</a> &#187;</li> 
+      </ul>
+    </div>
+    
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="example-sea-state-contour">
+<h1>Example: Sea state contour<a class="headerlink" href="#example-sea-state-contour" title="Permalink to this headline">¶</a></h1>
+<p>Let’s start this user guide with a simple example.</p>
+<p>Based on a dataset, the long-term joint distribution of sea states is estimated
+and this distribution will be used to construct an environmental contour with a
+return period of 50 years.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+
+<span class="kn">from</span> <span class="nn">viroconcom.fitting</span> <span class="kn">import</span> <span class="n">Fit</span>
+<span class="kn">from</span> <span class="nn">viroconcom.contours</span> <span class="kn">import</span> <span class="n">IFormContour</span>
+<span class="kn">from</span> <span class="nn">viroconcom.read_write</span> <span class="kn">import</span> <span class="n">read_ecbenchmark_dataset</span>
+<span class="kn">from</span> <span class="nn">viroconcom.plot</span> <span class="kn">import</span> <span class="n">plot_contour</span>
+
+
+<span class="c1"># Load sea state measurements from the NDBC buoy 44007.</span>
+<span class="n">sample_hs</span><span class="p">,</span> <span class="n">sample_tz</span><span class="p">,</span> <span class="n">label_hs</span><span class="p">,</span> <span class="n">label_tz</span> <span class="o">=</span> \
+    <span class="n">read_ecbenchmark_dataset</span><span class="p">(</span><span class="s1">&#39;datasets/1year_dataset_A.txt&#39;</span><span class="p">)</span>
+
+<span class="c1"># Define the structure of the probabilistic model that will be fitted to the</span>
+<span class="c1"># dataset. This model structure has been proposed in the paper &quot;Global</span>
+<span class="c1"># hierarchical models for wind and wave contours: Physical interpretations</span>
+<span class="c1"># of the dependence functions&quot; by Haselsteiner et al. (2020).</span>
+<span class="n">dist_description_hs</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;Weibull_Exp&#39;</span><span class="p">}</span>
+<span class="n">dist_description_tz</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;Lognormal_SigmaMu&#39;</span><span class="p">,</span>
+                      <span class="s1">&#39;dependency&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span>  <span class="kc">None</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+                      <span class="s1">&#39;functions&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;asymdecrease3&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="s1">&#39;lnsquare2&#39;</span><span class="p">)}</span>
+<span class="n">model_structure</span> <span class="o">=</span> <span class="p">(</span><span class="n">dist_description_hs</span><span class="p">,</span> <span class="n">dist_description_tz</span><span class="p">)</span>
+
+<span class="c1"># Fit the model to the data.</span>
+<span class="n">fit</span> <span class="o">=</span> <span class="n">Fit</span><span class="p">((</span><span class="n">sample_hs</span><span class="p">,</span> <span class="n">sample_tz</span><span class="p">),</span> <span class="n">model_structure</span><span class="p">)</span>
+<span class="n">fitted_distribution</span> <span class="o">=</span> <span class="n">fit</span><span class="o">.</span><span class="n">mul_var_dist</span>
+
+
+<span class="c1"># Compute an IFORM contour with a return period of 50 years.</span>
+<span class="n">tr</span> <span class="o">=</span> <span class="mi">50</span> <span class="c1"># Return period in years.</span>
+<span class="n">ts</span> <span class="o">=</span> <span class="mi">1</span> <span class="c1"># Sea state duration in hours.</span>
+<span class="n">contour</span> <span class="o">=</span> <span class="n">IFormContour</span><span class="p">(</span><span class="n">fitted_distribution</span><span class="p">,</span> <span class="n">tr</span><span class="p">,</span> <span class="n">ts</span><span class="p">)</span>
+
+<span class="c1"># Plot the data and the contour.</span>
+<span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">sample_tz</span><span class="p">,</span> <span class="n">sample_hs</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="s1">&#39;black&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>
+<span class="n">plot_contour</span><span class="p">(</span><span class="n">contour</span><span class="o">.</span><span class="n">coordinates</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">contour</span><span class="o">.</span><span class="n">coordinates</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+             <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">x_label</span><span class="o">=</span><span class="n">label_tz</span><span class="p">,</span> <span class="n">y_label</span><span class="o">=</span><span class="n">label_hs</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>The code, which is available as a Python file <a class="reference external" href="https://github.com/virocon-organization/viroconcom/blob/master/examples/sea_state_iform_contour.py">here</a>, will create this plot:</p>
+<div class="figure align-default" id="id1">
+<a class="reference internal image-reference" href="_images/sea_state_contour.png"><img alt="sea state contour" src="_images/sea_state_contour.png" style="width: 640.0px; height: 480.0px;" /></a>
+<p class="caption"><span class="caption-text">Environmental contour with a return period of 50 years.</span><a class="headerlink" href="#id1" title="Permalink to this image">¶</a></p>
+</div>
+</div>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="install.html"
+                        title="previous chapter">Installation</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="workflow.html"
+                        title="next chapter">Overall work flow and software architecture</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/example.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="workflow.html" title="Overall work flow and software architecture"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="install.html" title="Installation"
+             accesskey="P">previous</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, viroconcom.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 3.2.1.
+    </div>
+  </body>
+</html>

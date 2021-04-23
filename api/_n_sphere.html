@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>viroconcom._n_sphere module &#8212; viroconcom  documentation</title>
+    <link rel="stylesheet" href="../_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+    <script src="../_static/sidebar.js"></script>
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../_static/mini_logo.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+
+  </head><body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+        <li><a href="../index.html">viroconcom  documentation</a> &#187;</li> 
+      </ul>
+    </div>
+    
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-viroconcom._n_sphere">
+<span id="viroconcom-n-sphere-module"></span><h1>viroconcom._n_sphere module<a class="headerlink" href="#module-viroconcom._n_sphere" title="Permalink to this headline">¶</a></h1>
+<p>Sample (almost) equally distributed points on an n-spheres surface.</p>
+<dl class="py class">
+<dt id="viroconcom._n_sphere.NSphere">
+<em class="property">class </em><code class="sig-prename descclassname">viroconcom._n_sphere.</code><code class="sig-name descname">NSphere</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">dim</span></em>, <em class="sig-param"><span class="n">n_samples</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/viroconcom/_n_sphere.html#NSphere"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#viroconcom._n_sphere.NSphere" title="Permalink to this definition">¶</a></dt>
+<dd><p>This class calculates almost equally spaced points on a n-sphere.</p>
+<p>It considers the Thomson problem <a class="footnote-reference brackets" href="#id2" id="id1">1</a> to distribute the points on the sphere.</p>
+<p class="rubric">References</p>
+<dl class="footnote brackets">
+<dt class="label" id="id2"><span class="brackets"><a class="fn-backref" href="#id1">1</a></span></dt>
+<dd><p><a class="reference external" href="https://en.wikipedia.org/wiki/Thomson_problem">https://en.wikipedia.org/wiki/Thomson_problem</a></p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">sphere</span> <span class="o">=</span> <span class="n">NSphere</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">1000</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">samples</span> <span class="o">=</span> <span class="n">sphere</span><span class="o">.</span><span class="n">unit_sphere_points</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1">#%% plot sphere</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">mpl_toolkits.mplot3d</span> <span class="kn">import</span> <span class="n">Axes3D</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="s1">&#39;all&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1">#fig = plt.figure(figsize=plt.figaspect(1))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1">#ax = fig.add_subplot(111, projection=&#39;3d&#39;)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">u</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mi">50</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">v</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mi">30</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">outer</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">u</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">v</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">outer</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">u</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">v</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">z</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">outer</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">u</span><span class="p">)),</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">v</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1">#wireframe_plot = ax.plot_wireframe(x, y, z, rcount=10, ccount=10,)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1">#sphere_plot = ax.scatter(samples[:, 0], samples[:, 1], samples[:, 2],                                 c=&#39;green&#39;, depthshade=False, label=&quot;verteilt&quot;)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1">#plot_legend = ax.legend()</span>
+</pre></div>
+</div>
+<dl class="py method">
+<dt id="viroconcom._n_sphere.NSphere.__init__">
+<code class="sig-name descname">__init__</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">dim</span></em>, <em class="sig-param"><span class="n">n_samples</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/viroconcom/_n_sphere.html#NSphere.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#viroconcom._n_sphere.NSphere.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dim</strong> (<a class="reference external" href="https://docs.python.org/3.6/library/functions.html#int" title="(in Python v3.6)"><em>int</em></a>) – The number of dimensions. (i.e. the n in n-sphere plus 1)</p></li>
+<li><p><strong>n_samples</strong> (<a class="reference external" href="https://docs.python.org/3.6/library/functions.html#int" title="(in Python v3.6)"><em>int</em></a>) – The number of points to distribute on the n-sphere.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="viroconcom._n_sphere.NSphere._get_forces">
+<code class="sig-name descname">_get_forces</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/viroconcom/_n_sphere.html#NSphere._get_forces"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#viroconcom._n_sphere.NSphere._get_forces" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates the Coloumb forces.</p>
+<p>Assume the <span class="math notranslate nohighlight">\(N\)</span> points are electrons with charge 1 and Coloumb’s constant is 1.
+The Coulomb force on point <span class="math notranslate nohighlight">\(i\)</span> can then be expressed as:</p>
+<div class="math notranslate nohighlight">
+\[F_i = \sum_{j \neq i} \frac{1}{{\lvert {r_{ij}} \rvert}^2},
+0 \leq j \leq N\]</div>
+</dd></dl>
+
+<dl class="py method">
+<dt id="viroconcom._n_sphere.NSphere._pot_energy">
+<code class="sig-name descname">_pot_energy</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/viroconcom/_n_sphere.html#NSphere._pot_energy"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#viroconcom._n_sphere.NSphere._pot_energy" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates the potential energy of the current state.</p>
+<p>Assume the points on the sphere are electrons with charge equal to 1 and
+assume Coulomb’s constant equal to 1. Then the electrostatic potential energy of
+<span class="math notranslate nohighlight">\(N\)</span> electrons can be written as:</p>
+<div class="math notranslate nohighlight">
+\[U = \sum_{i &lt; j } \frac{1}{\lvert {r_{ij}} \rvert}\]</div>
+<p>With <span class="math notranslate nohighlight">\(0 \leq i &lt; j \leq N\)</span> and <span class="math notranslate nohighlight">\(\lvert {r_{ij}} \rvert\)</span> the distance vector
+between electron <span class="math notranslate nohighlight">\(i\)</span> and <span class="math notranslate nohighlight">\(j\)</span>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="viroconcom._n_sphere.NSphere._random_unit_sphere_points">
+<code class="sig-name descname">_random_unit_sphere_points</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/viroconcom/_n_sphere.html#NSphere._random_unit_sphere_points"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#viroconcom._n_sphere.NSphere._random_unit_sphere_points" title="Permalink to this definition">¶</a></dt>
+<dd><p>Generates equally distributed points on the sphere’s surface.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Used algorithm:</p>
+<ul class="simple">
+<li><p>Use a N(0,1) standard normal distribution to generate cartesian coordinate vectors.</p></li>
+<li><p>Normalize the vectors to length 1.</p></li>
+<li><p>The points then are uniformly distributed on the sphere’s surface.</p></li>
+</ul>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt id="viroconcom._n_sphere.NSphere._relax_points">
+<code class="sig-name descname">_relax_points</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/viroconcom/_n_sphere.html#NSphere._relax_points"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#viroconcom._n_sphere.NSphere._relax_points" title="Permalink to this definition">¶</a></dt>
+<dd><p>Iteratively move points to reduce potential energy.</p>
+<p>Iteratively moves points in the direction of the tangential part of the
+coloumb forces and calculates the potential energy after each iteration.
+The best state, i.e. the state with least potential energy, is saved.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="viroconcom._n_sphere.NSphere._tangential_forces">
+<code class="sig-name descname">_tangential_forces</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">forces</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/viroconcom/_n_sphere.html#NSphere._tangential_forces"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#viroconcom._n_sphere.NSphere._tangential_forces" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates the tangential part of the forces.</p>
+<p>First calculates the radial forces and substracts them to get the tangential part.
+With <span class="math notranslate nohighlight">\(\vec{r_i}\)</span> the radial vector pointing to point <span class="math notranslate nohighlight">\(i\)</span>,
+<span class="math notranslate nohighlight">\(F_i\)</span> the force on point <span class="math notranslate nohighlight">\(i\)</span>, and scalar product <span class="math notranslate nohighlight">\(\langle~,~\rangle\)</span>,
+the radial force can be calculated like:</p>
+<blockquote>
+<div><div class="math notranslate nohighlight">
+\[\vec{F_{i_{rad}}} = \langle\vec{F_i}, \vec{r_i}\rangle  \vec{r_i}\]</div>
+</div></blockquote>
+<p>The tangential force is then expressed by:</p>
+<blockquote>
+<div><div class="math notranslate nohighlight">
+\[\vec{F_{i_{tan}}} = \vec{F_i} - \vec{F_{i_{rad}}}\]</div>
+</div></blockquote>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>forces</strong> (<em>ndarray</em><em>,</em>) – The forces to calculate the tangential part of.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/api/_n_sphere.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, viroconcom.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 3.2.1.
+    </div>
+  </body>
+</html>

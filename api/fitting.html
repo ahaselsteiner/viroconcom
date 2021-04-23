@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>viroconcom.fitting module &#8212; viroconcom  documentation</title>
+    <link rel="stylesheet" href="../_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+    <script src="../_static/sidebar.js"></script>
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../_static/mini_logo.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+
+  </head><body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+        <li><a href="../index.html">viroconcom  documentation</a> &#187;</li> 
+      </ul>
+    </div>
+    
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-viroconcom.fitting">
+<span id="viroconcom-fitting-module"></span><h1>viroconcom.fitting module<a class="headerlink" href="#module-viroconcom.fitting" title="Permalink to this headline">¶</a></h1>
+<p>Fits distributions to data.</p>
+<dl class="py class">
+<dt id="viroconcom.fitting.Fit">
+<em class="property">class </em><code class="sig-prename descclassname">viroconcom.fitting.</code><code class="sig-name descname">Fit</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">samples</span></em>, <em class="sig-param"><span class="n">dist_descriptions</span></em>, <em class="sig-param"><span class="n">timeout</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/viroconcom/fitting.html#Fit"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#viroconcom.fitting.Fit" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3.6/library/functions.html#object" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Holds data and information about a fit.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The fitted results are not checked for correctness. The created distributions may not contain
+useful parameters. Distribution parameters are being checked in the contour creation process.</p>
+</div>
+<dl class="py attribute">
+<dt id="viroconcom.fitting.Fit.mul_var_dist">
+<code class="sig-name descname">mul_var_dist</code><a class="headerlink" href="#viroconcom.fitting.Fit.mul_var_dist" title="Permalink to this definition">¶</a></dt>
+<dd><p>Distribution that is calculated</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type</dt>
+<dd class="field-odd"><p><a class="reference internal" href="distributions.html#viroconcom.distributions.MultivariateDistribution" title="viroconcom.distributions.MultivariateDistribution">MultivariateDistribution</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt id="viroconcom.fitting.Fit.multiple_fit_inspection_data">
+<code class="sig-name descname">multiple_fit_inspection_data</code><a class="headerlink" href="#viroconcom.fitting.Fit.multiple_fit_inspection_data" title="Permalink to this definition">¶</a></dt>
+<dd><p>Contains fit inspection data objects for each dimension.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type</dt>
+<dd class="field-odd"><p>list of FitInspectionData</p>
+</dd>
+</dl>
+</dd></dl>
+
+<p class="rubric">Examples</p>
+<p>Create a Fit and visualize the result in a IFORM contour:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">multiprocessing</span> <span class="kn">import</span> <span class="n">Pool</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">statsmodels.api</span> <span class="k">as</span> <span class="nn">sm</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">scipy.stats</span> <span class="k">as</span> <span class="nn">sts</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">scipy.optimize</span> <span class="kn">import</span> <span class="n">curve_fit</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">viroconcom.params</span> <span class="kn">import</span> <span class="n">ConstantParam</span><span class="p">,</span> <span class="n">FunctionParam</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">viroconcom.distributions</span> <span class="kn">import</span> <span class="p">(</span><span class="n">WeibullDistribution</span><span class="p">,</span>                                           <span class="n">LognormalDistribution</span><span class="p">,</span>                                           <span class="n">NormalDistribution</span><span class="p">,</span>                                           <span class="n">KernelDensityDistribution</span><span class="p">,</span>                                           <span class="n">MultivariateDistribution</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">viroconcom.contours</span> <span class="kn">import</span> <span class="n">IFormContour</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">prng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">RandomState</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sample_1</span> <span class="o">=</span> <span class="n">prng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">500</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sample_2</span> <span class="o">=</span> <span class="p">[</span><span class="n">point</span> <span class="o">+</span> <span class="n">prng</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span> <span class="k">for</span> <span class="n">point</span> <span class="ow">in</span> <span class="n">sample_1</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dist_description_1</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;KernelDensity&#39;</span><span class="p">,</span> <span class="s1">&#39;dependency&#39;</span><span class="p">:</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span> <span class="s1">&#39;number_of_intervals&#39;</span><span class="p">:</span> <span class="mi">5</span><span class="p">}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dist_description_2</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;Normal&#39;</span><span class="p">,</span> <span class="s1">&#39;dependency&#39;</span><span class="p">:</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span> <span class="s1">&#39;functions&#39;</span><span class="p">:(</span><span class="kc">None</span><span class="p">,</span> <span class="s1">&#39;power3&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">my_fit</span> <span class="o">=</span> <span class="n">Fit</span><span class="p">((</span><span class="n">sample_1</span><span class="p">,</span> <span class="n">sample_2</span><span class="p">),</span> <span class="p">(</span><span class="n">dist_description_1</span><span class="p">,</span> <span class="n">dist_description_2</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">my_contour</span> <span class="o">=</span> <span class="n">IFormContour</span><span class="p">(</span><span class="n">my_fit</span><span class="o">.</span><span class="n">mul_var_dist</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1">#example_plot = plt.scatter(my_contour.coordinates[0][0], my_contour.coordinates[0][1], label=&quot;IForm&quot;)</span>
+</pre></div>
+</div>
+<p>Create a Fit and visualize the result in a HDC contour:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">viroconcom.contours</span> <span class="kn">import</span> <span class="n">HighestDensityContour</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sample_3</span> <span class="o">=</span> <span class="n">prng</span><span class="o">.</span><span class="n">weibull</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">500</span><span class="p">)</span> <span class="o">+</span> <span class="mi">15</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sample_4</span> <span class="o">=</span> <span class="p">[</span><span class="n">point</span> <span class="o">+</span> <span class="n">prng</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">point</span> <span class="ow">in</span> <span class="n">sample_1</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dist_description_1</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;Weibull&#39;</span><span class="p">,</span> <span class="s1">&#39;dependency&#39;</span><span class="p">:</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dist_description_2</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;Normal&#39;</span><span class="p">,</span> <span class="s1">&#39;dependency&#39;</span><span class="p">:</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">my_fit</span> <span class="o">=</span> <span class="n">Fit</span><span class="p">((</span><span class="n">sample_3</span><span class="p">,</span> <span class="n">sample_4</span><span class="p">),</span> <span class="p">(</span><span class="n">dist_description_1</span><span class="p">,</span> <span class="n">dist_description_2</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">return_period</span> <span class="o">=</span> <span class="mi">50</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">state_duration</span> <span class="o">=</span> <span class="mi">3</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">limits</span> <span class="o">=</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">20</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">20</span><span class="p">)]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">deltas</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.05</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">my_contour</span> <span class="o">=</span> <span class="n">HighestDensityContour</span><span class="p">(</span><span class="n">my_fit</span><span class="o">.</span><span class="n">mul_var_dist</span><span class="p">,</span> <span class="n">return_period</span><span class="p">,</span> <span class="n">state_duration</span><span class="p">,</span> <span class="n">limits</span><span class="p">,</span> <span class="n">deltas</span><span class="p">,)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1">#example_plot2 = plt.scatter(my_contour.coordinates[0][0], my_contour.coordinates[0][1], label=&quot;HDC&quot;)</span>
+</pre></div>
+</div>
+<p>An Example how to visualize how good your fit is:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">dist_description_0</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;Weibull_3p&#39;</span><span class="p">,</span> <span class="s1">&#39;dependency&#39;</span><span class="p">:</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span> <span class="s1">&#39;number_of_intervals&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dist_description_1</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;Lognormal&#39;</span><span class="p">,</span> <span class="s1">&#39;dependency&#39;</span><span class="p">:</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="s1">&#39;functions&#39;</span><span class="p">:</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="s1">&#39;exp3&#39;</span><span class="p">)}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">my_fit</span> <span class="o">=</span> <span class="n">Fit</span><span class="p">((</span><span class="n">sample_1</span><span class="p">,</span> <span class="n">sample_2</span><span class="p">),</span> <span class="p">(</span><span class="n">dist_description_0</span><span class="p">,</span> <span class="n">dist_description_1</span><span class="p">))</span>
+<span class="go">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1">#fig = plt.figure(figsize=(10, 8))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1">#example_text = fig.suptitle(&quot;Dependence of &#39;scale&#39;&quot;)</span>
+<span class="go">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1">#ax1 = fig.add_subplot(221)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1">#title1 = ax1.set_title(&quot;Fitted curve&quot;)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">param_grid</span> <span class="o">=</span> <span class="n">my_fit</span><span class="o">.</span><span class="n">multiple_fit_inspection_data</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">scale_at</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x_1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">15</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1">#ax1_plot = ax1.plot(param_grid, my_fit.multiple_fit_inspection_data[0].scale_value, &#39;x&#39;)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1">#example_plot1 = ax1.plot(x_1, my_fit.mul_var_dist.distributions[1].scale(x_1))</span>
+<span class="go">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1">#ax2 = fig.add_subplot(222)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1">#title2 = ax2.set_title(&quot;Distribution &#39;1&#39;&quot;)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1">#ax2_hist = ax2.hist(my_fit.multiple_fit_inspection_data[1].scale_samples[0], normed=1)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">shape</span> <span class="o">=</span> <span class="n">my_fit</span><span class="o">.</span><span class="n">mul_var_dist</span><span class="o">.</span><span class="n">distributions</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">scale</span> <span class="o">=</span> <span class="n">my_fit</span><span class="o">.</span><span class="n">mul_var_dist</span><span class="o">.</span><span class="n">distributions</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">scale</span><span class="p">(</span><span class="n">param_grid</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1">#ax2_plot = ax2.plot(np.linspace(0, 20, 100), sts.lognorm.pdf(np.linspace(0, 20, 100), s=shape, scale=scale))</span>
+<span class="go">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1">#ax3 = fig.add_subplot(223)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1">#title3 = ax3.set_title(&quot;Distribution &#39;2&#39;&quot;)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1">#ax3_hist = ax3.hist(my_fit.multiple_fit_inspection_data[1].scale_samples[1], normed=1)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">shape</span> <span class="o">=</span> <span class="n">my_fit</span><span class="o">.</span><span class="n">mul_var_dist</span><span class="o">.</span><span class="n">distributions</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">scale</span> <span class="o">=</span> <span class="n">my_fit</span><span class="o">.</span><span class="n">mul_var_dist</span><span class="o">.</span><span class="n">distributions</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">scale</span><span class="p">(</span><span class="n">param_grid</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1">#ax3_plot = ax3.plot(np.linspace(0, 20, 100), sts.lognorm.pdf(np.linspace(0, 20, 100), s=shape, scale=scale))</span>
+<span class="go">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1">#ax4 = fig.add_subplot(224)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1">#title4 = ax4.set_title(&quot;Distribution &#39;3&#39;&quot;)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1">#ax4_hist = ax4.hist(my_fit.multiple_fit_inspection_data[1].scale_samples[2], normed=1)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">shape</span> <span class="o">=</span> <span class="n">my_fit</span><span class="o">.</span><span class="n">mul_var_dist</span><span class="o">.</span><span class="n">distributions</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">scale</span> <span class="o">=</span> <span class="n">my_fit</span><span class="o">.</span><span class="n">mul_var_dist</span><span class="o">.</span><span class="n">distributions</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">scale</span><span class="p">(</span><span class="n">param_grid</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1">#ax4_plot = ax4.plot(np.linspace(0, 20, 100), sts.lognorm.pdf(np.linspace(0, 20, 100), s=shape, scale=scale))</span>
+</pre></div>
+</div>
+<dl class="py method">
+<dt id="viroconcom.fitting.Fit.__init__">
+<code class="sig-name descname">__init__</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">samples</span></em>, <em class="sig-param"><span class="n">dist_descriptions</span></em>, <em class="sig-param"><span class="n">timeout</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/viroconcom/fitting.html#Fit.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#viroconcom.fitting.Fit.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Creates a Fit, by estimating the parameters of the distribution.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>samples</strong> (<a class="reference external" href="https://docs.python.org/3.6/library/stdtypes.html#tuple" title="(in Python v3.6)"><em>tuple</em></a><em> or </em><em>list of list</em>) – <dl class="simple">
+<dt>List that contains data to be fitted<span class="classifier">samples[0] -&gt; first variable (i.e. wave height)</span></dt><dd><p>samples[1] -&gt; second variable
+…</p>
+</dd>
+</dl>
+</p></li>
+<li><p><strong>dist_descriptions</strong> (<em>list of dict</em>) – contains dictionary for each parameter. See note for further information.</p></li>
+<li><p><strong>timeout</strong> (<a class="reference external" href="https://docs.python.org/3.6/library/functions.html#int" title="(in Python v3.6)"><em>int</em></a><em>, </em><em>optional</em>) – The maximum time in seconds there the contour has to be computed.
+This parameter also controls multiprocessing. If timeout is None
+serial processing is performed, if it is not None multiprocessing
+is used. Defaults to None.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises</dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3.6/library/exceptions.html#TimeoutError" title="(in Python v3.6)"><strong>TimeoutError</strong></a> – If the calculation takes too long and the given value for timeout is exceeded.</p>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>dist_descriptions contains the following keys where some are
+required and some are optional.</p>
+<p>Required:</p>
+<dl class="simple">
+<dt>name<span class="classifier">str</span></dt><dd><p>name of distribution (defined in settings.py):</p>
+<ul class="simple">
+<li><p>Weibull_2p,</p></li>
+<li><p>Weibull_3p,</p></li>
+<li><p>Weibull_Exp</p></li>
+<li><p>Lognormal (shape, scale),</p></li>
+<li><p>Lognormal_SigmaMu (sigma, mu),</p></li>
+<li><p>Normal,</p></li>
+<li><p>InverseGaussian</p></li>
+<li><p>KernelDensity (no dependency)</p></li>
+</ul>
+</dd>
+<dt>dependency<span class="classifier">tuple or list of int</span></dt><dd><p>Length of 3 or 4 in the order (shape, loc, scale, shape2) contains:</p>
+<ul class="simple">
+<li><p>None -&gt; no dependency</p></li>
+<li><p>int -&gt; depends on particular dimension</p></li>
+</ul>
+</dd>
+<dt>functions<span class="classifier">tuple or list of str</span></dt><dd><p>Length of 3 in the order : (shape, loc, scale), usable options:</p>
+<ul class="simple">
+<li><dl class="field-list simple">
+<dt class="field-odd">power3</dt>
+<dd class="field-odd"><p><span class="math notranslate nohighlight">\(a + b * x^c\)</span></p>
+</dd>
+</dl>
+</li>
+<li><dl class="field-list simple">
+<dt class="field-odd">exp3</dt>
+<dd class="field-odd"><p><span class="math notranslate nohighlight">\(a + b * e^{x * c}\)</span></p>
+</dd>
+</dl>
+</li>
+<li><dl class="field-list simple">
+<dt class="field-odd">lnsquare2</dt>
+<dd class="field-odd"><p><span class="math notranslate nohighlight">\(ln[a + b * sqrt(x / 9.81)\)</span></p>
+</dd>
+</dl>
+</li>
+<li><dl class="field-list simple">
+<dt class="field-odd">powerdecrease3</dt>
+<dd class="field-odd"><p><span class="math notranslate nohighlight">\(a + 1 / (x + b)^c\)</span></p>
+</dd>
+</dl>
+</li>
+<li><dl class="field-list simple">
+<dt class="field-odd">asymdecrease3</dt>
+<dd class="field-odd"><p><span class="math notranslate nohighlight">\(a + b / (1 + c * x)\)</span></p>
+</dd>
+</dl>
+</li>
+<li><dl class="field-list simple">
+<dt class="field-odd">logistics4</dt>
+<dd class="field-odd"><p><span class="math notranslate nohighlight">\(a + b / [1 + e^{-1 * |c| * (x - d)}]\)</span></p>
+</dd>
+</dl>
+</li>
+<li><p>remark : in case of Lognormal_SigmaMu it is (sigma, None, mu)</p></li>
+</ul>
+</dd>
+</dl>
+<p>Optional:</p>
+<dl class="simple">
+<dt>fixed_parameters<span class="classifier">tuple of floats</span></dt><dd><p>If some parameters shall not be estimated, but should be fixed,
+they can be specified with this key. Floats are interpeted in the
+order (shape, location, scale, shape2).</p>
+</dd>
+<dt>do_use_weights_for_dependence_function<span class="classifier">Boolean, defaults to False</span></dt><dd><p>If true the dependence function is fitted using weights. The weights
+are 1 / parameter_value such that a normalization is performed.</p>
+</dd>
+</dl>
+<p>and either number_of_intervals, width_of_intervals or points_per_interval:</p>
+<dl class="simple">
+<dt>number_of_intervals<span class="classifier">int</span></dt><dd><p>Number of bins the data of this variable should be seperated for fits which depend
+upon it. If the number of bins is given, the width of the bins is determined
+automatically.</p>
+</dd>
+<dt>width_of_intervals<span class="classifier">float</span></dt><dd><p>Width of the bins. When the width of the bins is given, the number of bins is
+determined automatically.</p>
+</dd>
+<dt>points_per_interval<span class="classifier">int</span></dt><dd><p>The number of points per interval.</p>
+</dd>
+</dl>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt id="viroconcom.fitting.Fit._append_params">
+<em class="property">static </em><code class="sig-name descname">_append_params</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">name</span></em>, <em class="sig-param"><span class="n">param_values</span></em>, <em class="sig-param"><span class="n">dependency</span></em>, <em class="sig-param"><span class="n">index</span></em>, <em class="sig-param"><span class="n">sample</span></em>, <em class="sig-param"><span class="n">fixed_parameters</span><span class="o">=</span><span class="default_value">None, None, None, None</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/viroconcom/fitting.html#Fit._append_params"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#viroconcom.fitting.Fit._append_params" title="Permalink to this definition">¶</a></dt>
+<dd><p>Distributions are being fitted and the results are appended to param_points.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<a class="reference external" href="https://docs.python.org/3.6/library/stdtypes.html#str" title="(in Python v3.6)"><em>str</em></a>) – Name of distribution (e.g. ‘Weibull_2p’ or ‘Lognormal’).</p></li>
+<li><p><strong>param_values</strong> (<em>list of list</em><em>,</em>) – Contains lists that contain values for each param : order (shape, loc, scale).</p></li>
+<li><p><strong>dependency</strong> (<em>list of int</em>) – Length of 3 in the order (shape, loc, scale) contains :
+None -&gt; no dependency
+int -&gt; depends on particular dimension</p></li>
+<li><p><strong>index</strong> (<a class="reference external" href="https://docs.python.org/3.6/library/functions.html#int" title="(in Python v3.6)"><em>int</em></a>) – The current parameter as int in the order of (shape, loc, scale) (i.e. 0 -&gt; shape).</p></li>
+<li><p><strong>sample</strong> (<em>list of float</em>) – Values that are used to fit the distribution.</p></li>
+<li><p><strong>fixed_parameters</strong> (<em>tuple of float</em>) – Specifies which value parameters are fixed and thus are not
+fitted. None means that it is not fixed, but shall be estimated.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>The information of this single fit.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>BasicFit</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="viroconcom.fitting.Fit._fit_distribution">
+<em class="property">static </em><code class="sig-name descname">_fit_distribution</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">sample</span></em>, <em class="sig-param"><span class="n">name</span></em>, <em class="sig-param"><span class="n">fixed_parameters</span><span class="o">=</span><span class="default_value">None, None, None, None</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/viroconcom/fitting.html#Fit._fit_distribution"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#viroconcom.fitting.Fit._fit_distribution" title="Permalink to this definition">¶</a></dt>
+<dd><p>Fits the distribution and returns the parameters.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sample</strong> (<em>list of float</em>) – Raw data the distribution is fitted on.</p></li>
+<li><p><strong>name</strong> (<a class="reference external" href="https://docs.python.org/3.6/library/stdtypes.html#str" title="(in Python v3.6)"><em>str</em></a>) – Name of the distribution (“Weibull_2p”, “Weibull_3p”, “Lognormal” or
+“Lognormal_SigmaMu”, “Normal”, “KernelDensity”). They keyword list
+is defined in settings.py.</p></li>
+<li><p><strong>fixed_parameters</strong> (<em>tuple of float</em>) – Specifies which value parameters are fixed and thus are not
+fitted. None means that it is not fixed, but shall be estimated.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>The computed parameters in the order of (shape, loc, scale, shape2).</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>tuple of ConstantParam</p>
+</dd>
+<dt class="field-even">Raises</dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3.6/library/exceptions.html#ValueError" title="(in Python v3.6)"><strong>ValueError</strong></a> – If the distribution is unknown.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="viroconcom.fitting.Fit._get_distribution">
+<code class="sig-name descname">_get_distribution</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">dimension</span></em>, <em class="sig-param"><span class="n">samples</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/viroconcom/fitting.html#Fit._get_distribution"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#viroconcom.fitting.Fit._get_distribution" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the fitted distribution, the dependency and information to
+visualize all fits for this dimension.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dimension</strong> (<a class="reference external" href="https://docs.python.org/3.6/library/functions.html#int" title="(in Python v3.6)"><em>int</em></a>) – Number of the variable. For example it can be 0, which means that
+this is the first variable (for example sig. wave height).</p></li>
+<li><p><strong>samples</strong> (<em>list of list</em>) – List that contains data to be fitted :
+samples[0] -&gt; first variable (for example sig. wave height)
+samples[1] -&gt; second variable (for example spectral peak period)
+…</p></li>
+<li><p><strong>**kwargs</strong> (<em>contains the fit_description data to clarify which kind of</em>) – distribution with which method should be fitted.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>distribution</strong> (<em>Distribution</em>) – The fitted distribution instance.</p></li>
+<li><p><strong>dependency</strong> (<em>list of int</em>) – List that contains the used dependencies for fitting.</p></li>
+<li><p><strong>used_number_of_intervals</strong> (<em>list of int</em>) – List with length of three that contains the used number of intervals
+for each parameter (shape, loc, scale).</p></li>
+<li><p><strong>fit_inspection_data</strong> (<em>FitInspectionData</em>) – Object that holds information about all fits in this dimension.</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Raises</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><a class="reference external" href="https://docs.python.org/3.6/library/exceptions.html#NotImplementedError" title="(in Python v3.6)"><strong>NotImplementedError</strong></a> – If the the name of a dependent distribution was ‘KernelDensity’.</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3.6/library/exceptions.html#RuntimeError" title="(in Python v3.6)"><strong>RuntimeError</strong></a> – If not a good fit was found.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="viroconcom.fitting.Fit._get_fitting_values">
+<em class="property">static </em><code class="sig-name descname">_get_fitting_values</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">sample</span></em>, <em class="sig-param"><span class="n">samples</span></em>, <em class="sig-param"><span class="n">name</span></em>, <em class="sig-param"><span class="n">dependency</span></em>, <em class="sig-param"><span class="n">index</span></em>, <em class="sig-param"><span class="n">number_of_intervals</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">bin_width</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">points_per_interval</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">min_datapoints_for_fit</span><span class="o">=</span><span class="default_value">20</span></em>, <em class="sig-param"><span class="n">fixed_parameters</span><span class="o">=</span><span class="default_value">None, None, None, None</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/viroconcom/fitting.html#Fit._get_fitting_values"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#viroconcom.fitting.Fit._get_fitting_values" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns values for fitting.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sample</strong> (<em>list of float</em>) – The current sample to fit.</p></li>
+<li><p><strong>samples</strong> (<em>list of list</em>) – <dl class="simple">
+<dt>List that contains data to be fitted<span class="classifier">samples[0] -&gt; first variable (i.e. wave height)</span></dt><dd><p>samples[1] -&gt; second variable
+…</p>
+</dd>
+</dl>
+</p></li>
+<li><p><strong>name</strong> (<a class="reference external" href="https://docs.python.org/3.6/library/stdtypes.html#str" title="(in Python v3.6)"><em>str</em></a>) – Name of distribution (e.g. ‘Weibull_2p’ or ‘Lognormal’).</p></li>
+<li><p><strong>dependency</strong> (<em>list of int</em>) – <dl class="simple">
+<dt>Length of 3 in the order (shape, loc, scale) contains :</dt><dd><p>None -&gt; no dependency
+int -&gt; depends on particular dimension</p>
+</dd>
+</dl>
+</p></li>
+<li><p><strong>index</strong> (<a class="reference external" href="https://docs.python.org/3.6/library/functions.html#int" title="(in Python v3.6)"><em>int</em></a>) – Order : (shape, loc, scale) (i.e. 0 -&gt; shape).</p></li>
+<li><p><strong>number_of_intervals</strong> (<a class="reference external" href="https://docs.python.org/3.6/library/functions.html#int" title="(in Python v3.6)"><em>int</em></a>) – Number of distributions used to fit shape, loc, scale.</p></li>
+<li><p><strong>min_datapoints_for_fit</strong> (<a class="reference external" href="https://docs.python.org/3.6/library/functions.html#int" title="(in Python v3.6)"><em>int</em></a>) – Minimum number of datapoints required to perform the fit.</p></li>
+<li><p><strong>fixed_parameters</strong> (<em>tuple of float</em>) – Specifies which value parameters are fixed and thus are not
+fitted. None means that it is not fixed, but shall be estimated.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>For that case that number_of_intervals and also bin_width is given the parameter
+number_of_intervals is used.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p><ul class="simple">
+<li><p><strong>interval_centers</strong> (<em>ndarray</em>) – Array with length of the number of bins that contains the centers of the
+calculated bins.</p></li>
+<li><p><strong>dist_values</strong> (<em>list of list</em>) – List with length of the number of intervals that contains for each bin center
+the used samples for the current fit.</p></li>
+<li><p><strong>param_values</strong> (<em>list of list</em>) – List with length of three that contains for each parameter (shape, loc, scale)
+a list with length of the number of bins that contains the calculated parameters.</p></li>
+<li><p><strong>multiple_basic_fit</strong> (<em>list of BasicFit</em>) – Contains information for each fit.</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-even">Raises</dt>
+<dd class="field-even"><ul class="simple">
+<li><p><a class="reference external" href="https://docs.python.org/3.6/library/exceptions.html#RuntimeError" title="(in Python v3.6)"><strong>RuntimeError</strong></a> – If the parameter number_of_intervals or bin_width or points_per_interval was not specified.</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3.6/library/exceptions.html#RuntimeError" title="(in Python v3.6)"><strong>RuntimeError</strong></a> – If there was not enough data and the number of intervals was less than three.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="viroconcom.fitting.Fit._get_function">
+<em class="property">static </em><code class="sig-name descname">_get_function</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">function_name</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/viroconcom/fitting.html#Fit._get_function"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#viroconcom.fitting.Fit._get_function" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the function.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>function_name</strong> (<a class="reference external" href="https://docs.python.org/3.6/library/stdtypes.html#str" title="(in Python v3.6)"><em>str</em></a>) – Options are ‘power3’, ‘exp3’, ‘lnsquare2’, ‘powerdecrease3’,
+‘asymdecrease3’, ‘logistics4’, ‘alpha3’.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>The actual function named function_name.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>func</p>
+</dd>
+<dt class="field-even">Raises</dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3.6/library/exceptions.html#ValueError" title="(in Python v3.6)"><strong>ValueError</strong></a> – If the function is unknown.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/api/fitting.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, viroconcom.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 3.2.1.
+    </div>
+  </body>
+</html>

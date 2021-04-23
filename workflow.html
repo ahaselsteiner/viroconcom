@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Overall work flow and software architecture &#8212; viroconcom  documentation</title>
+    <link rel="stylesheet" href="_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
+    <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+    <script src="_static/sidebar.js"></script>
+    
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Define a joint distribution and calculate a contour" href="jointdistribution_and_contours.html" />
+    <link rel="prev" title="Example: Sea state contour" href="example.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="_static/mini_logo.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+
+  </head><body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+        <li><a href="index.html">viroconcom  documentation</a> &#187;</li>
+          <li><a href="user_guide.html" accesskey="U">User Guide</a> &#187;</li> 
+      </ul>
+    </div>
+    
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="overall-work-flow-and-software-architecture">
+<h1>Overall work flow and software architecture<a class="headerlink" href="#overall-work-flow-and-software-architecture" title="Permalink to this headline">¶</a></h1>
+<p>Figure 1 shows a flowchart that captures the overall functionality of
+viroconcom. A statistical model of the offshore environment can be created
+by fitting a model structure to measured data. Then, this statistical model
+can be used to construct an environmental contour.</p>
+<div class="figure align-default" id="id1">
+<a class="reference internal image-reference" href="_images/viroconcom-flowchart.jpg"><img alt="flowchart for viroconcom" src="_images/viroconcom-flowchart.jpg" style="width: 741.5px; height: 212.5px;" /></a>
+<p class="caption"><span class="caption-text">Figure 1. Flowchart showing how the process of fitting a model structure to
+measured data and constructing an environmental contour.</span><a class="headerlink" href="#id1" title="Permalink to this image">¶</a></p>
+</div>
+<dl class="simple">
+<dt>In viroconcom the class <code class="docutils literal notranslate"><span class="pre">Fit</span></code> handles the fitting, the class</dt><dd><p><code class="docutils literal notranslate"><span class="pre">MultivariateDistribution</span></code> represents the statistical model and the class</p>
+</dd>
+</dl>
+<p><code class="docutils literal notranslate"><span class="pre">Contour</span></code> (and its child classes) handles the contour construction.</p>
+<p>Figure 2 shows viroconcom’s class diagram.</p>
+<div class="figure align-default" id="id2">
+<a class="reference internal image-reference" href="_images/class-diagram.jpg"><img alt="class diagram for viroconcom" src="_images/class-diagram.jpg" style="width: 927.25px; height: 537.0px;" /></a>
+<p class="caption"><span class="caption-text">Figure 2. Class diagram showing among others the class Fit, which handles
+fitting a model structure to a dataset, and the class Contour, which
+handles contour construction. This class diagram was created for viroconcom
+version 1.1.0.</span><a class="headerlink" href="#id2" title="Permalink to this image">¶</a></p>
+</div>
+</div>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="example.html"
+                        title="previous chapter">Example: Sea state contour</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="jointdistribution_and_contours.html"
+                        title="next chapter">Define a joint distribution and calculate a contour</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/workflow.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="jointdistribution_and_contours.html" title="Define a joint distribution and calculate a contour"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="example.html" title="Example: Sea state contour"
+             accesskey="P">previous</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, viroconcom.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 3.2.1.
+    </div>
+  </body>
+</html>
