@@ -11,36 +11,91 @@ from virocon.intervals import NumberOfIntervalsSlicer
 __all__ = ["GlobalHierarchicalModel"]
 
 class MultivariateModel(ABC):
-    
     """
-    TODO: Beschreibung
+    Abstract base class for MultivariateModel.
+    
+    Statistical model of multiple variables.
     
     """
     
     @abstractmethod
     def pdf(self, *args, **kwargs):
+        """
+        Probability density function.
+        
+        """
         pass
+    
     @abstractmethod
     def cdf(self, *args, **kwargs):
+        """
+        Cumulative distribution function.
+        
+        """
         pass
+    
     @abstractmethod
     def marginal_pdf(self, *args, **kwargs):
+        """
+        Marginal probability density function.
+        
+        Probability distribution of the individual variables.
+        
+        """
         pass
+    
     @abstractmethod        
     def marginal_cdf(self, *args, **kwargs):
+        """
+        Marginal cumulative distribution function.
+        
+        Probability distribution of the individual variables.
+        
+        """
         pass   
+    
     @abstractmethod        
     def marginal_icdf(self, *args, **kwargs):
+        """
+        Marginal inverse cumulative distribution function.
+        
+        Probability distribution of the individual variables.
+        
+        """
         pass
+    
     @abstractmethod
     def draw_sample(self, *args, **kwargs):
+        """
+        Draw a random sample of length n.
+       
+        """
         pass
 
 
 class GlobalHierarchicalModel(MultivariateModel):
-   
     """
-    TODO: Beschreibung
+    Probabilistic model.
+    
+    Probabilistic model that covers the complete range of an environmental 
+    variable (’global’), following a particular hierarchical dependence 
+    structure. The factorization describes a hierarchy where a random 
+    variable with index i can only depend upon random variables with 
+    indices less than i [1]_ .
+       
+    Parameters
+    ----------   
+    MultivariateModel : type? MultivariateModel ?
+        Statistical model of multiple variables.
+       
+    References
+    ----------
+    .. [1] Haselsteiner, A.F.; Sander, A.; Ohlendorf, J.H.; Thoben, K.D. (2020)
+        Global hierarchical models for wind and wave contours: physical
+        interpretations of the dependence functions. OMAE 2020, Fort Lauderdale,
+        USA. Proceedings of the 39th International Conference on Ocean, 
+        Offshore and Arctic Engineering.
+    
     
     """
     
