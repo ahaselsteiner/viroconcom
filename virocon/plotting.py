@@ -9,7 +9,13 @@ __all__ = ["plot_marginal_quantiles", "plot_dependence_functions",
 
 
  # TODO move to utility as it is also used in contours.py
-def get_default_model_description(n_dim):
+def get_default_model_description(n_dim):  
+    """
+       
+       TODO: Beschreibung
+       
+    """
+        
     model_desc = {"names" : [f"Variable {dim+1}" for dim in range(n_dim)],
                   "symbols" : [f"V{dim+1}" for dim in range(n_dim)],
                   "units" : ["arb. unit" for dim in range(n_dim)]
@@ -18,6 +24,12 @@ def get_default_model_description(n_dim):
 
 
 def plot_marginal_quantiles(model, sample, model_desc=None, axes=None):
+    """
+       
+       TODO: Beschreibung
+       
+    """
+        
     sample = np.asarray(sample)
     n_dim = model.n_dim
     if model_desc is None:
@@ -33,6 +45,13 @@ def plot_marginal_quantiles(model, sample, model_desc=None, axes=None):
     # probplot expects an object that has a ppf method, but we name it icdf
     # therefor we create a wrapper that maps the ppf to the icdf method
     class MarginalDistWrapper:
+            
+        """
+           
+        TODO: Beschreibung
+           
+        """
+        
         
         def __init__(self, model, idx):
             self.model = model
@@ -60,6 +79,12 @@ def plot_marginal_quantiles(model, sample, model_desc=None, axes=None):
     return axes
 
 def plot_dependence_functions(model, model_desc=None, par_rename=None, axes=None):
+    """
+       
+    TODO: Beschreibung
+       
+    """
+        
     n_dim = model.n_dim
     conditional_dist_idc = [dim for dim  in range(n_dim) 
                             if model.conditional_on[dim] is not None]
@@ -102,7 +127,13 @@ def plot_dependence_functions(model, model_desc=None, par_rename=None, axes=None
     return axes
 
 
-def plot_2D_isodensity(model, sample, model_desc=None, swap_axis=False, ax=None):
+def plot_2D_isodensity(model, sample, model_desc=None, swap_axis=False, ax=None):   
+    """
+       
+       TODO: Beschreibung
+       
+    """
+        
 
     n_dim = model.n_dim
     assert n_dim == 2
@@ -154,7 +185,13 @@ def plot_2D_isodensity(model, sample, model_desc=None, swap_axis=False, ax=None)
     return ax
 
 
+
 def plot_2D_contour(contour, sample=None, design_conditions=None, model_desc=None, swap_axis=False, ax=None):
+
+    """ 
+       TODO: Beschreibung
+       
+    """
     
     # design conditions can be True or array
     n_dim = 2

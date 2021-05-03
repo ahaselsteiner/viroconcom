@@ -6,13 +6,26 @@ __all__ = ["WidthOfIntervalSlicer", "NumberOfIntervalsSlicer",
            "PointsPerIntervalSlicer"]
 
 class IntervalSlicer(ABC):
-
+    """
+        Interval Slicer
+        
+        TODO: Beschreibung
+        
+    """
+    
     def __init__(self, **kwargs):
         self.min_n_points = kwargs.get("min_n_points", 50)
         self.min_n_intervals = kwargs.get("min_n_intervals", 3)
         self.center = None
 
     def slice_(self, data):
+        
+        """
+        Slice
+        
+        TODO: Beschreibung
+        
+        """
         interval_slices, interval_centers, interval_boundaries = self._slice(data)
 
         if len(interval_slices) < self.min_n_intervals:
@@ -42,7 +55,12 @@ class IntervalSlicer(ABC):
 
 
 class WidthOfIntervalSlicer(IntervalSlicer):
-    
+    """
+       
+    TODO: Beschreibung
+       
+    """
+   
     def __init__(self, width, center=None, offset=False, right_open=True, **kwargs):
         super().__init__(**kwargs)
         self.width = width
@@ -78,6 +96,11 @@ class WidthOfIntervalSlicer(IntervalSlicer):
     
     
 class NumberOfIntervalsSlicer(IntervalSlicer):
+    """
+            
+    TODO: Beschreibung
+            
+    """
     
     def __init__(self, n_intervals, center=None, include_max=True, range_=None, **kwargs):
         super().__init__(**kwargs)
@@ -122,6 +145,12 @@ class NumberOfIntervalsSlicer(IntervalSlicer):
 
 
 class PointsPerIntervalSlicer(IntervalSlicer):
+    """
+    
+            
+    TODO: Beschreibung
+            
+    """
 
     def __init__(self, n_points, center=None, last_full=True, **kwargs):
         super().__init__(**kwargs)
