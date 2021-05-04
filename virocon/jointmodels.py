@@ -92,13 +92,13 @@ class GlobalHierarchicalModel(MultivariateModel):
     ----------
     distributions : ?
         The distributions used in the GlobalHierachicalModel.
-    conditional_on : 
-        
-    interval_slicers : 
+    conditional_on : ?
+        Indicates the dependencies between the variables of the model.
+    interval_slicers : ?
         Sorts the conditional variable (e.g Tp|Hs) into intervals of the
-        conditioning variable (Hs). 
-    n_dim : 
-        Number of dimensions.
+        independent variable (Hs). 
+    n_dim : ?
+        Number of dimensions. Indicating the number of variables of the model.
         
        
     References
@@ -208,6 +208,8 @@ class GlobalHierarchicalModel(MultivariateModel):
             The data that should be used to fit the joint model.
             Realizations of the distributions variable split into intervals. 
             One array for each interval containing the data in that interval.
+        fit_description : 
+            Description of the fit method. Defaults to None.
 
         """
 
@@ -314,9 +316,18 @@ class GlobalHierarchicalModel(MultivariateModel):
 
 
     def marginal_pdf(self, x, dim):
-      
         """
-         TODO: Beschreibung
+        Marginal probability density function.
+        
+        Probability distribution of the individual variables.
+                
+        Parameters
+        ----------
+        x : array_like,
+            Points at which the pdf is evaluated.
+            Shape: 1-dimensional
+        dim : ?
+            Dimension of the GlobalHierachicalModel. 
    
         """
         
@@ -367,7 +378,17 @@ class GlobalHierarchicalModel(MultivariateModel):
     def marginal_cdf(self, x, dim):
       
         """
-         TODO: Beschreibung
+        Marginal cumulative distribution function.
+        
+        Probability distribution of the individual variables.
+                
+        Parameters
+        ----------
+        x : array_like, 
+            Points at which the cdf is evaluated.
+            Shape: 1-dimensional
+        dim : ?
+            Dimension of the GlobalHierachicalModel. 
   
         """
         
@@ -418,7 +439,19 @@ class GlobalHierarchicalModel(MultivariateModel):
     def marginal_icdf(self, p, dim, precision_factor=1):
       
         """
-         TODO: Beschreibung
+        Marginal inverse cumulative distribution function.
+        
+        Probability distribution of the individual variables.
+                        
+        Parameters
+        ----------
+        p : array_like,
+            Probabilities for which the i_cdf is evaluated.
+            Shape: 1-dimensional
+        dim : ?
+            Dimension of the GlobalHierachicalModel. 
+        precision_factor : ?
+            Defaults to 1. 
    
         """
         
