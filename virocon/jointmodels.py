@@ -75,7 +75,7 @@ class MultivariateModel(ABC):
 
 class GlobalHierarchicalModel(MultivariateModel):
     """
-    Probabilistic model.
+    Probabilistic model. Inherits from MultivariateModel.
     
     Probabilistic model that covers the complete range of an environmental 
     variable (’global’), following a particular hierarchical dependence 
@@ -85,8 +85,21 @@ class GlobalHierarchicalModel(MultivariateModel):
        
     Parameters
     ----------   
-    MultivariateModel : type? MultivariateModel ?
-        Statistical model of multiple variables.
+    dist_descriptions : type? 
+        Description of the distributions. 
+        
+    Attributes
+    ----------
+    distributions : ?
+        The distributions used in the GlobalHierachicalModel.
+    conditional_on : 
+        
+    interval_slicers : 
+        Sorts the conditional variable (e.g Tp|Hs) into intervals of the
+        conditioning variable (Hs). 
+    n_dim : 
+        Number of dimensions.
+        
        
     References
     ----------

@@ -221,10 +221,8 @@ class IFORMContour(Contour):
     ----------
     coordinates : 
         Coordinates of the calculated contour.
-        
     beta :
-        Reliability index.
-        
+        Reliability index.  
     sphere_points : 
           Points of the sphere in U space [1]_ . 
     
@@ -309,10 +307,8 @@ class ISORMContour(Contour):
     ----------
     coordinates : 
         Coordinates of the calculated contour.
-        
     beta :
-        Reliability index.
-        
+        Reliability index.  
     sphere_points : 
           Points of the sphere in U space [1]_ . 
     
@@ -410,13 +406,11 @@ class HighestDensityContour(Contour):
     ----------
     coordinates : ndarray
         Coordinates of the calculated contour.
-        Shape: (number of points, number of dimensions). 
-        
+        Shape: (number of points, number of dimensions).  
     cell_center_coordinates : list of array
         Points at which the grid is evaluated.
         A list with one entry for each dimension, each entry is an array with
         the cell centers for that dimension.
-    
     fm : float
         Minimum probability density of the enclosed region / constant 
         probability density along the contour. 
